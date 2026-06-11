@@ -1,0 +1,53 @@
+"""yt-dlp format presets used by URLift."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+VIDEO_BEST = "Best video quality"
+VIDEO_1080P = "1080p MP4"
+VIDEO_720P = "720p MP4"
+VIDEO_480P = "480p MP4"
+MP3_AUDIO = "MP3 audio"
+M4A_AUDIO = "M4A audio"
+
+VIDEO_PRESETS = {
+    VIDEO_BEST: "bestvideo+bestaudio/best",
+    VIDEO_1080P: "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+    VIDEO_720P: "bestvideo[height<=720]+bestaudio/best[height<=720]",
+    VIDEO_480P: "bestvideo[height<=480]+bestaudio/best[height<=480]",
+}
+
+AUDIO_PRESETS = {
+    MP3_AUDIO: "mp3",
+    M4A_AUDIO: "m4a",
+}
+
+
+@dataclass(frozen=True)
+class DownloadFormat:
+    label: str
+    ytdlp_format: str
+    output_type: str
+    audio_codec: str | None = None
+
+
+def video_format(label: str) -> DownloadFormat:
+    """Return the yt-dlp video format config for a UI label."""
+    return DownloadFormat(
+        label=label,
+        ytdlp_format=VIDEO_PRESETS[label],
+        output_type="video",
+    )
+
+
+def audio_format(label: str) -> DownloadFormat:
+    """Return the yt-dlp audio format config for a UI label."""
+    return DownloadFormat(
+        label=label,
+        ytdlp_format="bestaudio/best",
+        output_type="audio",
+        audio_codec=AUDIO_PRESETS[label],
+    )
+
