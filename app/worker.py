@@ -45,7 +45,8 @@ class DownloadWorker(QThread):
         except FFmpegMissingError as exc:
             self.failed.emit(self._failure_payload("FFmpeg missing", str(exc)))
         except URLiftDownloadError as exc:
-            self.failed.emit(self._failure_payload("Failed", str(exc)))
+            status = "Unsupported URL" if "unsupported" in str(exc).lower() else "Failed"
+            self.failed.emit(self._failure_payload(status, str(exc)))
         except Exception as exc:
             self.failed.emit(self._failure_payload("Failed", str(exc) or "Failed"))
 
@@ -80,4 +81,3 @@ class DownloadWorker(QThread):
             "status": status,
             "error": error,
         }
-
