@@ -7,7 +7,6 @@ APP_STYLESHEET = """
 QWidget {
     background: #313338;
     color: #dbdee1;
-    font-family: "Segoe UI", Arial, sans-serif;
     font-size: 13px;
 }
 
@@ -105,10 +104,6 @@ QComboBox::drop-down {
 
 QComboBox::down-arrow {
     image: none;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 6px solid #b5bac1;
-    margin-right: 8px;
 }
 
 QComboBox QAbstractItemView {
