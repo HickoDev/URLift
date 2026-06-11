@@ -97,15 +97,6 @@ QComboBox:disabled {
     color: #80848e;
 }
 
-QComboBox::drop-down {
-    border: 0;
-    width: 28px;
-}
-
-QComboBox::down-arrow {
-    image: none;
-}
-
 QComboBox QAbstractItemView {
     background: #1e1f22;
     border: 1px solid #3f4147;
