@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -21,9 +23,10 @@ from PySide6.QtWidgets import (
 )
 
 from app.history_view import HistoryView
+from app.worker import DownloadRequest, DownloadWorker
 from downloader.config import default_download_dir
 from downloader.formats import M4A_AUDIO, MP3_AUDIO, VIDEO_1080P, VIDEO_480P, VIDEO_720P, VIDEO_BEST
-from downloader.validators import PLATFORMS
+from downloader.validators import PLATFORMS, validate_output_dir, validate_url
 from storage.history_repository import HistoryRepository
 
 
@@ -40,6 +43,7 @@ class URLiftWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.repository = HistoryRepository()
+        self.worker: DownloadWorker | None = None
 
         self.setWindowTitle("URLift")
         self.resize(980, 680)
@@ -89,11 +93,13 @@ class URLiftWindow(QMainWindow):
         output_type_layout.addWidget(self.video_radio)
         output_type_layout.addWidget(self.audio_radio)
         output_type_layout.addStretch(1)
-        self.video_radio.toggled.connect(self._set_quality_options)
+        self.video_radio.toggled.connect(lambda _checked: self._set_quality_options())
 
         self.quality_combo = QComboBox()
 
-        self.output_folder_input = QLineEdit(str(default_download_dir()))
+        download_dir = default_download_dir()
+        download_dir.mkdir(parents=True, exist_ok=True)
+        self.output_folder_input = QLineEdit(str(download_dir))
         self.output_folder_input.setPlaceholderText("Choose an output folder")
         self.browse_button = QPushButton("Browse")
         self.browse_button.clicked.connect(self.browse_output_folder)
@@ -103,6 +109,7 @@ class URLiftWindow(QMainWindow):
 
         self.download_button = QPushButton("Download")
         self.download_button.setObjectName("PrimaryButton")
+        self.download_button.clicked.connect(self.start_download)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
@@ -146,6 +153,130 @@ class URLiftWindow(QMainWindow):
         )
         if folder:
             self.output_folder_input.setText(folder)
+
+    def start_download(self) -> None:
+        platform = self.platform_combo.currentText()
+        url = self.url_input.text().strip()
+        output_type = self._selected_output_type()
+        quality = self.quality_combo.currentText()
+        output_dir = self.output_folder_input.text().strip()
+
+        url_valid, url_error = validate_url(url, platform)
+        if not url_valid:
+            self._record_failed_attempt(platform, url, output_type, quality, url_error)
+            self._set_status(url_error)
+            return
+
+        folder_valid, folder_error = validate_output_dir(output_dir)
+        if not folder_valid:
+            self._record_failed_attempt(platform, url, output_type, quality, folder_error)
+            self._set_status(folder_error)
+            return
+
+        request = DownloadRequest(
+            platform=platform,
+            url=url,
+            output_type=output_type,
+            quality=quality,
+            output_dir=Path(output_dir),
+        )
+        self.worker = DownloadWorker(request)
+        self.worker.progress.connect(self._on_download_progress)
+        self.worker.completed.connect(self._on_download_completed)
+        self.worker.failed.connect(self._on_download_failed)
+        self.worker.finished.connect(self._on_worker_finished)
+
+        self._set_busy(True)
+        self._set_status("Checking URL")
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.worker.start()
+
+    def _selected_output_type(self) -> str:
+        return "Audio only" if self.audio_radio.isChecked() else "Video"
+
+    def _on_download_progress(self, status: str, percent: float | None, message: str) -> None:
+        self._set_status(status if status else message)
+        if percent is None:
+            self.progress_bar.setRange(0, 0)
+            return
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(int(percent))
+
+    def _on_download_completed(self, payload: dict) -> None:
+        self.repository.add_entry(
+            platform=payload["platform"],
+            original_url=payload["url"],
+            media_title=payload["title"],
+            output_type=payload["output_type"],
+            selected_quality=payload["quality"],
+            saved_file_path=payload["file_path"],
+            file_extension=payload["extension"],
+            status="completed",
+        )
+        self.history_view.refresh()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(100)
+        self._set_status("Completed")
+
+    def _on_download_failed(self, payload: dict) -> None:
+        status = payload.get("status") or "Failed"
+        error = payload.get("error") or status
+        self.repository.add_entry(
+            platform=payload["platform"],
+            original_url=payload["url"],
+            media_title=payload.get("title") or "(unknown)",
+            output_type=payload["output_type"],
+            selected_quality=payload["quality"],
+            saved_file_path=payload.get("file_path") or "",
+            file_extension=payload.get("extension") or "",
+            status="failed",
+            error_message=error,
+        )
+        self.history_view.refresh()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self._set_status(status)
+
+    def _on_worker_finished(self) -> None:
+        worker = self.worker
+        self.worker = None
+        if worker:
+            worker.deleteLater()
+        self._set_busy(False)
+
+    def _record_failed_attempt(
+        self,
+        platform: str,
+        url: str,
+        output_type: str,
+        quality: str,
+        error: str,
+    ) -> None:
+        self.repository.add_entry(
+            platform=platform,
+            original_url=url or "(empty)",
+            media_title="(not downloaded)",
+            output_type=output_type,
+            selected_quality=quality,
+            status="failed",
+            error_message=error,
+        )
+        self.history_view.refresh()
+
+    def _set_busy(self, busy: bool) -> None:
+        self.platform_combo.setEnabled(not busy)
+        self.url_input.setEnabled(not busy)
+        self.video_radio.setEnabled(not busy)
+        self.audio_radio.setEnabled(not busy)
+        self.quality_combo.setEnabled(not busy)
+        self.output_folder_input.setEnabled(not busy)
+        self.browse_button.setEnabled(not busy)
+        self.download_button.setEnabled(not busy)
+        self.download_button.setText("Downloading" if busy else "Download")
+
+    def _set_status(self, status: str) -> None:
+        self.status_label.setText(status)
 
     def _apply_style(self) -> None:
         self.setStyleSheet(
