@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractItemView,
@@ -38,7 +38,11 @@ class HistoryView(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.setMinimumHeight(360)
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(38)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
@@ -48,6 +52,8 @@ class HistoryView(QWidget):
         self.copy_url_button = QPushButton("Copy original URL")
         self.remove_button = QPushButton("Remove item")
         self.clear_button = QPushButton("Clear all history")
+        self.remove_button.setObjectName("DangerButton")
+        self.clear_button.setObjectName("DangerButton")
 
         self.open_file_button.clicked.connect(self.open_selected_file)
         self.open_folder_button.clicked.connect(self.open_selected_folder)
@@ -64,6 +70,8 @@ class HistoryView(QWidget):
         actions.addWidget(self.clear_button)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(14)
         layout.addWidget(self.table)
         layout.addLayout(actions)
 
@@ -84,6 +92,10 @@ class HistoryView(QWidget):
             for column, value in enumerate(values):
                 cell = QTableWidgetItem(value)
                 cell.setData(Qt.UserRole, item.id)
+                cell.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+                if column == 4:
+                    color = "#23a559" if item.status == "completed" else "#f23f43"
+                    cell.setForeground(QColor(color))
                 if item.error_message:
                     cell.setToolTip(item.error_message)
                 self.table.setItem(row, column, cell)
