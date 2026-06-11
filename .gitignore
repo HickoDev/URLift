@@ -1,0 +1,14 @@
+__pycache__/
+.venv/
+dist/
+build/
+*.spec
+*.sqlite
+*.sqlite3
+*.db
+*.mp3
+*.m4a
+*.mp4
+*.webm
+*.mkv
+
