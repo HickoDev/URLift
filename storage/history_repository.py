@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -44,7 +45,7 @@ class HistoryRepository:
         error_message: str | None = None,
     ) -> int:
         downloaded_at = datetime.now().astimezone().isoformat(timespec="seconds")
-        with get_connection(self.db_path) as connection:
+        with closing(get_connection(self.db_path)) as connection:
             cursor = connection.execute(
                 """
                 INSERT INTO download_history (
@@ -74,6 +75,7 @@ class HistoryRepository:
                     error_message,
                 ),
             )
+            connection.commit()
             return int(cursor.lastrowid)
 
     def update_status(
@@ -86,7 +88,7 @@ class HistoryRepository:
         file_extension: str | None = None,
         error_message: str | None = None,
     ) -> None:
-        with get_connection(self.db_path) as connection:
+        with closing(get_connection(self.db_path)) as connection:
             connection.execute(
                 """
                 UPDATE download_history
@@ -106,9 +108,10 @@ class HistoryRepository:
                     item_id,
                 ),
             )
+            connection.commit()
 
     def fetch_all(self) -> list[HistoryItem]:
-        with get_connection(self.db_path) as connection:
+        with closing(get_connection(self.db_path)) as connection:
             rows = connection.execute(
                 """
                 SELECT
@@ -130,10 +133,11 @@ class HistoryRepository:
         return [HistoryItem(**dict(row)) for row in rows]
 
     def delete_item(self, item_id: int) -> None:
-        with get_connection(self.db_path) as connection:
+        with closing(get_connection(self.db_path)) as connection:
             connection.execute("DELETE FROM download_history WHERE id = ?", (item_id,))
+            connection.commit()
 
     def clear(self) -> None:
-        with get_connection(self.db_path) as connection:
+        with closing(get_connection(self.db_path)) as connection:
             connection.execute("DELETE FROM download_history")
-
+            connection.commit()
