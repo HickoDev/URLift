@@ -6,6 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QSizePolicy,
     QFileDialog,
     QComboBox,
     QFormLayout,
@@ -62,12 +63,12 @@ class URLiftWindow(QMainWindow):
     def _build_download_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(18)
+        layout.setContentsMargins(32, 28, 32, 32)
+        layout.setSpacing(16)
 
         title = QLabel("URLift")
         title.setObjectName("Title")
-        subtitle = QLabel("Download authorized or public media with yt-dlp.")
+        subtitle = QLabel("Authorized media downloader")
         subtitle.setObjectName("Subtitle")
 
         note = QLabel(LEGAL_NOTE)
@@ -79,13 +80,16 @@ class URLiftWindow(QMainWindow):
         form_layout = QFormLayout(form_frame)
         form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
         form_layout.setLabelAlignment(Qt.AlignRight)
-        form_layout.setSpacing(12)
+        form_layout.setHorizontalSpacing(20)
+        form_layout.setVerticalSpacing(16)
 
         self.platform_combo = QComboBox()
         self.platform_combo.addItems(PLATFORMS)
+        self.platform_combo.setMinimumWidth(420)
 
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("Paste a media URL")
+        self.url_input.setMinimumWidth(420)
 
         self.video_radio = QRadioButton("Video")
         self.audio_radio = QRadioButton("Audio only")
@@ -97,6 +101,7 @@ class URLiftWindow(QMainWindow):
         self.video_radio.toggled.connect(lambda _checked: self._set_quality_options())
 
         self.quality_combo = QComboBox()
+        self.quality_combo.setMinimumWidth(420)
 
         download_dir = default_download_dir()
         download_dir.mkdir(parents=True, exist_ok=True)
@@ -110,14 +115,19 @@ class URLiftWindow(QMainWindow):
 
         self.download_button = QPushButton("Download")
         self.download_button.setObjectName("PrimaryButton")
+        self.download_button.setMinimumWidth(160)
+        self.download_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.download_button.clicked.connect(self.start_download)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
 
         self.status_label = QLabel("Ready")
         self.status_label.setObjectName("StatusLabel")
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setMinimumWidth(130)
 
         form_layout.addRow("Platform", self.platform_combo)
         form_layout.addRow("URL", self.url_input)
@@ -128,6 +138,7 @@ class URLiftWindow(QMainWindow):
         form_layout.addRow("Progress", self.progress_bar)
         form_layout.addRow("Status", self.status_label)
 
+        form_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(title)
         layout.addWidget(subtitle)
         layout.addWidget(note)

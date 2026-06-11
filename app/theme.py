@@ -52,6 +52,15 @@ QLabel#Subtitle {
     font-size: 14px;
 }
 
+QLabel#StatusLabel {
+    background: #1e1f22;
+    border: 1px solid #3f4147;
+    border-radius: 14px;
+    color: #23a559;
+    font-weight: 700;
+    padding: 6px 12px;
+}
+
 QLabel#LegalNote {
     background: #3f3420;
     border: 1px solid #8f6a24;
@@ -212,4 +221,3 @@ QMessageBox {
     background: #313338;
 }
 """
-
