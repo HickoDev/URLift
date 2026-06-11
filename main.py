@@ -11,6 +11,7 @@ from app.window import URLiftWindow
 
 def main() -> int:
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
     window = URLiftWindow()
     window.show()
     return app.exec()
@@ -18,4 +19,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

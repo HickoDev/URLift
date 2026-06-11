@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.history_view import HistoryView
+from app.theme import APP_STYLESHEET
 from app.worker import DownloadRequest, DownloadWorker
 from downloader.config import default_download_dir
 from downloader.formats import M4A_AUDIO, MP3_AUDIO, VIDEO_1080P, VIDEO_480P, VIDEO_720P, VIDEO_BEST
@@ -279,47 +280,4 @@ class URLiftWindow(QMainWindow):
         self.status_label.setText(status)
 
     def _apply_style(self) -> None:
-        self.setStyleSheet(
-            """
-            QMainWindow {
-                background: #f6f7f9;
-            }
-            QLabel#Title {
-                font-size: 28px;
-                font-weight: 700;
-                color: #15171a;
-            }
-            QLabel#Subtitle {
-                color: #4c5563;
-                font-size: 13px;
-            }
-            QLabel#LegalNote {
-                background: #fff7e6;
-                border: 1px solid #f1c36d;
-                border-radius: 6px;
-                color: #4c3513;
-                padding: 10px;
-            }
-            QFrame#FormFrame {
-                background: #ffffff;
-                border: 1px solid #d9dee7;
-                border-radius: 8px;
-                padding: 16px;
-            }
-            QPushButton#PrimaryButton {
-                background: #1665d8;
-                color: #ffffff;
-                border: 0;
-                border-radius: 6px;
-                padding: 9px 16px;
-                font-weight: 600;
-            }
-            QPushButton#PrimaryButton:disabled {
-                background: #94a3b8;
-            }
-            QLabel#StatusLabel {
-                color: #1f2937;
-                font-weight: 600;
-            }
-            """
-        )
+        self.setStyleSheet(APP_STYLESHEET)
