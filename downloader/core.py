@@ -135,7 +135,7 @@ def _download(
     file_path = _resolve_file_path(info, output_dir, expected_extension, started_at)
     if force_aac_audio and file_path.suffix.lower() == ".mp4":
         emit("Converting", 100.0, "Converting")
-        _convert_mp4_audio_to_aac(file_path, ffmpeg_path)
+        _convert_mp4_to_windows_compatible(file_path, ffmpeg_path)
 
     title = str(info.get("title") or file_path.stem)
     emit("Completed", 100.0)
@@ -248,8 +248,8 @@ def _paths_from_info(info: dict) -> list[Path]:
     return paths
 
 
-def _convert_mp4_audio_to_aac(file_path: Path, ffmpeg_path: Path) -> None:
-    temp_path = file_path.with_name(f"{file_path.stem}.aacfix.tmp{file_path.suffix}")
+def _convert_mp4_to_windows_compatible(file_path: Path, ffmpeg_path: Path) -> None:
+    temp_path = file_path.with_name(f"{file_path.stem}.compat.tmp{file_path.suffix}")
     if temp_path.exists():
         temp_path.unlink()
 
@@ -263,7 +263,13 @@ def _convert_mp4_audio_to_aac(file_path: Path, ffmpeg_path: Path) -> None:
         "-map",
         "0:a:0?",
         "-c:v",
-        "copy",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
         "-c:a",
         "aac",
         "-b:a",
@@ -284,6 +290,8 @@ def _convert_mp4_audio_to_aac(file_path: Path, ffmpeg_path: Path) -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         startupinfo=startupinfo,
         creationflags=creationflags,
         check=False,
