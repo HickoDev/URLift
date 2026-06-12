@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +10,7 @@ from typing import Callable
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError as YtdlpDownloadError
 
+from downloader.ffmpeg import find_ffmpeg
 from downloader.formats import audio_format as audio_preset
 from downloader.formats import video_format as video_preset
 
@@ -76,7 +76,7 @@ def download_audio(
 
 def ensure_ffmpeg() -> None:
     """Raise a user-facing error if FFmpeg is not available on PATH."""
-    if not shutil.which("ffmpeg"):
+    if not find_ffmpeg():
         raise FFmpegMissingError("FFmpeg missing")
 
 
@@ -88,7 +88,9 @@ def _download(
     progress_callback: ProgressCallback | None,
     postprocessors: list[dict[str, str | None]],
 ) -> DownloadResult:
-    ensure_ffmpeg()
+    ffmpeg_path = find_ffmpeg()
+    if not ffmpeg_path:
+        raise FFmpegMissingError("FFmpeg missing")
     output_dir.mkdir(parents=True, exist_ok=True)
     started_at = time.time()
 
@@ -103,6 +105,7 @@ def _download(
         format_selector=format_selector,
         postprocessors=postprocessors,
         progress_callback=emit,
+        ffmpeg_path=ffmpeg_path,
     )
 
     try:
@@ -140,9 +143,11 @@ def _ydl_options(
     format_selector: str,
     postprocessors: list[dict[str, str | None]],
     progress_callback: Callable[[str, float | None, str | None], None],
+    ffmpeg_path: Path,
 ) -> dict:
     return {
         "format": format_selector,
+        "ffmpeg_location": str(ffmpeg_path),
         "outtmpl": {"default": str(output_dir / "%(title).180B [%(id)s].%(ext)s")},
         "noplaylist": True,
         "merge_output_format": "mp4",
@@ -239,4 +244,3 @@ def _clean_error(message: str) -> str:
     if cleaned.startswith("ERROR:"):
         cleaned = cleaned.removeprefix("ERROR:").strip()
     return cleaned or "Failed"
-
