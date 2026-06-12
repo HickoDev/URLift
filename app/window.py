@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QSizePolicy,
     QFileDialog,
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.history_view import HistoryView
+from app.resources import resource_path
 from app.theme import APP_STYLESHEET
 from app.worker import DownloadRequest, DownloadWorker
 from downloader.config import default_download_dir
@@ -66,10 +68,35 @@ class URLiftWindow(QMainWindow):
         layout.setContentsMargins(32, 28, 32, 32)
         layout.setSpacing(16)
 
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(14)
+        header_layout.setAlignment(Qt.AlignLeft)
+
+        logo_label = QLabel()
+        logo_label.setFixedSize(58, 58)
+        logo_pixmap = QPixmap(str(resource_path("Logo.png")))
+        if not logo_pixmap.isNull():
+            logo_label.setPixmap(
+                logo_pixmap.scaled(
+                    logo_label.size(),
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation,
+                )
+            )
+
         title = QLabel("URLift")
         title.setObjectName("Title")
         subtitle = QLabel("Authorized media downloader")
         subtitle.setObjectName("Subtitle")
+
+        title_layout = QVBoxLayout()
+        title_layout.setSpacing(4)
+        title_layout.addWidget(title)
+        title_layout.addWidget(subtitle)
+
+        header_layout.addWidget(logo_label)
+        header_layout.addLayout(title_layout)
+        header_layout.addStretch(1)
 
         note = QLabel(LEGAL_NOTE)
         note.setObjectName("LegalNote")
@@ -139,8 +166,7 @@ class URLiftWindow(QMainWindow):
         form_layout.addRow("Status", self.status_label)
 
         form_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
+        layout.addLayout(header_layout)
         layout.addWidget(note)
         layout.addWidget(form_frame)
         layout.addStretch(1)
