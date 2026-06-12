@@ -24,7 +24,7 @@ def _windows_compatible_height(max_height: int) -> str:
         f"bestvideo[height<={max_height}][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/"
         f"bestvideo[height<={max_height}][ext=mp4]+bestaudio[ext=m4a]/"
         f"best[height<={max_height}][ext=mp4][acodec^=mp4a]/"
-        f"best[height<={max_height}][ext=mp4]/best[height<={max_height}]"
+        f"best[height<={max_height}][ext=mp4]/best[height<={max_height}]/best"
     )
 
 
