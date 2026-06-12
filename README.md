@@ -6,6 +6,12 @@
 
 URLift is a Windows desktop app for downloading authorized or public media from supported platforms. Paste a URL, choose a platform hint, choose video or audio output, select a quality or format, pick an output folder, and download with progress tracking.
 
+## Download
+
+Download the latest Windows build from GitHub Releases:
+
+[Download URLift.exe](https://github.com/HickoDev/URLift/releases/latest)
+
 URLift uses:
 
 - Python and PySide6 for the desktop interface
