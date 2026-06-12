@@ -55,9 +55,22 @@ QLabel#StatusLabel {
     background: #1e1f22;
     border: 1px solid #3f4147;
     border-radius: 14px;
-    color: #23a559;
+    color: #dbdee1;
     font-weight: 700;
     padding: 6px 12px;
+}
+
+QLabel#StatusLabel[state="success"],
+QLabel#StatusLabel[state="ready"] {
+    color: #23a559;
+}
+
+QLabel#StatusLabel[state="active"] {
+    color: #f0b232;
+}
+
+QLabel#StatusLabel[state="error"] {
+    color: #f23f43;
 }
 
 QLabel#LegalNote {

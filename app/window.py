@@ -61,6 +61,7 @@ class URLiftWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         self._apply_style()
         self._set_quality_options()
+        self._set_status("Ready")
 
     def _build_download_tab(self) -> QWidget:
         tab = QWidget()
@@ -315,6 +316,17 @@ class URLiftWindow(QMainWindow):
 
     def _set_status(self, status: str) -> None:
         self.status_label.setText(status)
+        if status in {"Ready"}:
+            state = "ready"
+        elif status in {"Completed"}:
+            state = "success"
+        elif status in {"Checking URL", "Downloading", "Converting"}:
+            state = "active"
+        else:
+            state = "error"
+        self.status_label.setProperty("state", state)
+        self.status_label.style().unpolish(self.status_label)
+        self.status_label.style().polish(self.status_label)
 
     def _apply_style(self) -> None:
         self.setStyleSheet(APP_STYLESHEET)
