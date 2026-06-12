@@ -1,4 +1,4 @@
 yt-dlp
 PySide6
 pyinstaller
-
+imageio-ffmpeg

@@ -62,7 +62,7 @@ dist/URLift.exe
 
 ## FFmpeg On Windows
 
-FFmpeg must be installed and available on `PATH` for MP3 extraction, M4A extraction, and MP4 merging.
+URLift uses a portable FFmpeg dependency when installed from `requirements.txt` or packaged with `build.bat`. If you prefer to use your own FFmpeg installation, install FFmpeg and make it available on `PATH`.
 
 One common setup:
 
@@ -75,7 +75,7 @@ One common setup:
 ffmpeg -version
 ```
 
-If FFmpeg is missing, URLift will show `FFmpeg missing`.
+If neither the bundled portable FFmpeg nor a system FFmpeg can be found, URLift will show `FFmpeg missing`.
 
 ## Download History
 
@@ -92,4 +92,3 @@ The History tab supports:
 ## Notes
 
 Some platforms may fail if they change their systems, restrict access, require login, block automation, or remove public availability. URLift intentionally does not bypass those restrictions.
-
