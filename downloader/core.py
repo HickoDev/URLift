@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,6 +50,7 @@ def download_video(
         expected_extension="mp4",
         progress_callback=progress_callback,
         postprocessors=[],
+        force_aac_audio=True,
     )
 
 
@@ -71,6 +74,7 @@ def download_audio(
                 "preferredcodec": preset.audio_codec,
             }
         ],
+        force_aac_audio=False,
     )
 
 
@@ -87,6 +91,7 @@ def _download(
     expected_extension: str,
     progress_callback: ProgressCallback | None,
     postprocessors: list[dict[str, str | None]],
+    force_aac_audio: bool,
 ) -> DownloadResult:
     ffmpeg_path = find_ffmpeg()
     if not ffmpeg_path:
@@ -128,6 +133,10 @@ def _download(
         raise URLiftDownloadError("Unsupported URL")
 
     file_path = _resolve_file_path(info, output_dir, expected_extension, started_at)
+    if force_aac_audio and file_path.suffix.lower() == ".mp4":
+        emit("Converting", 100.0, "Converting")
+        _convert_mp4_audio_to_aac(file_path, ffmpeg_path)
+
     title = str(info.get("title") or file_path.stem)
     emit("Completed", 100.0)
 
@@ -237,6 +246,54 @@ def _paths_from_info(info: dict) -> list[Path]:
                 paths.append(Path(value))
 
     return paths
+
+
+def _convert_mp4_audio_to_aac(file_path: Path, ffmpeg_path: Path) -> None:
+    temp_path = file_path.with_name(f"{file_path.stem}.aacfix.tmp{file_path.suffix}")
+    if temp_path.exists():
+        temp_path.unlink()
+
+    command = [
+        str(ffmpeg_path),
+        "-y",
+        "-i",
+        str(file_path),
+        "-map",
+        "0:v:0?",
+        "-map",
+        "0:a:0?",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-movflags",
+        "+faststart",
+        str(temp_path),
+    ]
+    startupinfo = None
+    creationflags = 0
+    if os.name == "nt":
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        creationflags = subprocess.CREATE_NO_WINDOW
+
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        startupinfo=startupinfo,
+        creationflags=creationflags,
+        check=False,
+    )
+    if result.returncode != 0:
+        if temp_path.exists():
+            temp_path.unlink()
+        raise URLiftDownloadError(_clean_error(result.stderr) or "Failed")
+
+    os.replace(temp_path, file_path)
 
 
 def _clean_error(message: str) -> str:
