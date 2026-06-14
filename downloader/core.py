@@ -381,4 +381,21 @@ def _clean_error(message: str) -> str:
     cleaned = message.strip()
     if cleaned.startswith("ERROR:"):
         cleaned = cleaned.removeprefix("ERROR:").strip()
-    return cleaned or "Failed"
+    if not cleaned:
+        return "Failed"
+
+    lower = cleaned.lower()
+    if "drm" in lower:
+        return "DRM-protected media is not supported."
+    if any(token in lower for token in ("login", "private", "premium", "paid", "subscription")):
+        return "This media requires login, payment, or private access and cannot be downloaded by URLift."
+    if "unsupported url" in lower or "no suitable extractor" in lower:
+        return "Unsupported URL"
+    if "http error 403" in lower or "forbidden" in lower:
+        return "Access was denied by the platform for this URL."
+    if any(token in lower for token in ("not available", "unavailable", "removed", "deleted")):
+        return "This media is unavailable or has been removed."
+    if any(token in lower for token in ("timed out", "timeout", "connection", "network")):
+        return "Network error while contacting the platform."
+
+    return cleaned[:500]
