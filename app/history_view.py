@@ -10,8 +10,11 @@ from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractItemView,
+    QComboBox,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -31,7 +34,15 @@ class HistoryView(QWidget):
     def __init__(self, repository: HistoryRepository) -> None:
         super().__init__()
         self.repository = repository
+        self.all_items: list[HistoryItem] = []
         self.items: list[HistoryItem] = []
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search title, platform, URL, or path")
+        self.status_filter = QComboBox()
+        self.status_filter.addItems(("All statuses", "Completed", "Failed"))
+        self.search_input.textChanged.connect(lambda _text: self.refresh())
+        self.status_filter.currentTextChanged.connect(lambda _text: self.refresh())
 
         self.table = QTableWidget(0, len(self.COLUMNS))
         self.table.setHorizontalHeaderLabels(self.COLUMNS)
@@ -61,6 +72,12 @@ class HistoryView(QWidget):
         self.remove_button.clicked.connect(self.remove_selected_item)
         self.clear_button.clicked.connect(self.clear_history)
 
+        filters = QHBoxLayout()
+        filters.addWidget(QLabel("Search"))
+        filters.addWidget(self.search_input, 1)
+        filters.addWidget(QLabel("Status"))
+        filters.addWidget(self.status_filter)
+
         actions = QHBoxLayout()
         actions.addWidget(self.open_file_button)
         actions.addWidget(self.open_folder_button)
@@ -72,13 +89,15 @@ class HistoryView(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(14)
+        layout.addLayout(filters)
         layout.addWidget(self.table)
         layout.addLayout(actions)
 
         self.refresh()
 
     def refresh(self) -> None:
-        self.items = self.repository.fetch_all()
+        self.all_items = self.repository.fetch_all()
+        self.items = self._filtered_items()
         self.table.setRowCount(len(self.items))
         for row, item in enumerate(self.items):
             values = (
@@ -99,6 +118,31 @@ class HistoryView(QWidget):
                 if item.error_message:
                     cell.setToolTip(item.error_message)
                 self.table.setItem(row, column, cell)
+
+    def _filtered_items(self) -> list[HistoryItem]:
+        query = self.search_input.text().strip().lower()
+        status = self.status_filter.currentText().lower()
+        items = self.all_items
+        if status != "all statuses":
+            items = [item for item in items if item.status.lower() == status]
+        if not query:
+            return items
+
+        return [
+            item
+            for item in items
+            if query
+            in " ".join(
+                (
+                    item.platform,
+                    item.original_url,
+                    item.media_title,
+                    item.selected_quality,
+                    item.status,
+                    item.saved_file_path,
+                )
+            ).lower()
+        ]
 
     def selected_item(self) -> HistoryItem | None:
         row = self.table.currentRow()
