@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
@@ -30,6 +30,7 @@ class HistoryView(QWidget):
     """Widget that displays and manages persisted download history."""
 
     COLUMNS = ("Date", "Platform", "Title", "Format", "Status", "File path")
+    retry_requested = Signal(object)
 
     def __init__(self, repository: HistoryRepository) -> None:
         super().__init__()
@@ -61,6 +62,7 @@ class HistoryView(QWidget):
         self.open_file_button = QPushButton("Open file")
         self.open_folder_button = QPushButton("Open folder")
         self.copy_url_button = QPushButton("Copy original URL")
+        self.retry_button = QPushButton("Retry")
         self.remove_button = QPushButton("Remove item")
         self.clear_button = QPushButton("Clear all history")
         self.remove_button.setObjectName("DangerButton")
@@ -69,6 +71,7 @@ class HistoryView(QWidget):
         self.open_file_button.clicked.connect(self.open_selected_file)
         self.open_folder_button.clicked.connect(self.open_selected_folder)
         self.copy_url_button.clicked.connect(self.copy_selected_url)
+        self.retry_button.clicked.connect(self.retry_selected_item)
         self.remove_button.clicked.connect(self.remove_selected_item)
         self.clear_button.clicked.connect(self.clear_history)
 
@@ -82,6 +85,7 @@ class HistoryView(QWidget):
         actions.addWidget(self.open_file_button)
         actions.addWidget(self.open_folder_button)
         actions.addWidget(self.copy_url_button)
+        actions.addWidget(self.retry_button)
         actions.addStretch(1)
         actions.addWidget(self.remove_button)
         actions.addWidget(self.clear_button)
@@ -183,6 +187,11 @@ class HistoryView(QWidget):
         item = self.selected_item()
         if item:
             QApplication.clipboard().setText(item.original_url)
+
+    def retry_selected_item(self) -> None:
+        item = self.selected_item()
+        if item:
+            self.retry_requested.emit(item)
 
     def remove_selected_item(self) -> None:
         item = self.selected_item()
