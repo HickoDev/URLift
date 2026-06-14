@@ -8,6 +8,7 @@ from pathlib import Path
 
 APP_NAME = "URLift"
 DATABASE_NAME = "history.sqlite3"
+SETTINGS_NAME = "settings.json"
 
 
 def default_download_dir() -> Path:
@@ -27,3 +28,7 @@ def database_path() -> Path:
     """Return the SQLite database path used for download history."""
     return app_data_dir() / DATABASE_NAME
 
+
+def settings_path() -> Path:
+    """Return the JSON settings path used for app preferences."""
+    return app_data_dir() / SETTINGS_NAME
