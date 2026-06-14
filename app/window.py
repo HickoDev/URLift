@@ -166,6 +166,15 @@ class URLiftWindow(QMainWindow):
         self.download_button.setMinimumWidth(160)
         self.download_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.download_button.clicked.connect(self.start_download)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.setObjectName("DangerButton")
+        self.cancel_button.setMinimumWidth(120)
+        self.cancel_button.setVisible(False)
+        self.cancel_button.clicked.connect(self.cancel_download)
+        action_layout = QHBoxLayout()
+        action_layout.addWidget(self.download_button)
+        action_layout.addWidget(self.cancel_button)
+        action_layout.addStretch(1)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
@@ -183,7 +192,7 @@ class URLiftWindow(QMainWindow):
         form_layout.addRow("Output type", output_type_layout)
         form_layout.addRow("Quality / format", self.quality_combo)
         form_layout.addRow("Output folder", output_folder_layout)
-        form_layout.addRow("", self.download_button)
+        form_layout.addRow("", action_layout)
         form_layout.addRow("Progress", self.progress_bar)
         form_layout.addRow("Status", self.status_label)
 
@@ -272,6 +281,13 @@ class URLiftWindow(QMainWindow):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.worker.start()
+
+    def cancel_download(self) -> None:
+        if not self.worker:
+            return
+        self.cancel_button.setEnabled(False)
+        self.worker.cancel()
+        self._set_status("Canceling")
 
     def _selected_output_type(self) -> str:
         return "Audio only" if self.audio_radio.isChecked() else "Video"
@@ -381,6 +397,8 @@ class URLiftWindow(QMainWindow):
         self.preview_button.setEnabled(not busy and self.preview_worker is None)
         self.download_button.setEnabled(not busy)
         self.download_button.setText("Downloading" if busy else "Download")
+        self.cancel_button.setVisible(busy)
+        self.cancel_button.setEnabled(busy)
 
     def _set_preview(self, title: str, detail: str) -> None:
         self.preview_title_label.setText(title)
@@ -401,7 +419,7 @@ class URLiftWindow(QMainWindow):
             state = "ready"
         elif status in {"Completed"}:
             state = "success"
-        elif status in {"Checking URL", "Downloading", "Converting"}:
+        elif status in {"Checking URL", "Downloading", "Converting", "Canceling"}:
             state = "active"
         else:
             state = "error"
