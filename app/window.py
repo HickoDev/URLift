@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 from app.history_view import HistoryView
 from app.resources import resource_path
 from app.theme import APP_STYLESHEET
-from app.worker import DownloadRequest, DownloadWorker
+from app.worker import DownloadRequest, DownloadWorker, PreviewWorker
 from downloader.config import default_download_dir
 from downloader.formats import M4A_AUDIO, MP3_AUDIO, VIDEO_1080P, VIDEO_480P, VIDEO_720P, VIDEO_BEST
 from downloader.validators import PLATFORMS, validate_output_dir, validate_url
@@ -48,6 +48,7 @@ class URLiftWindow(QMainWindow):
         super().__init__()
         self.repository = HistoryRepository()
         self.worker: DownloadWorker | None = None
+        self.preview_worker: PreviewWorker | None = None
 
         self.setWindowTitle("URLift")
         self.resize(980, 680)
@@ -118,6 +119,25 @@ class URLiftWindow(QMainWindow):
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("Paste a media URL")
         self.url_input.setMinimumWidth(420)
+        self.preview_button = QPushButton("Preview")
+        self.preview_button.clicked.connect(self.preview_url)
+        url_layout = QHBoxLayout()
+        url_layout.addWidget(self.url_input, 1)
+        url_layout.addWidget(self.preview_button)
+
+        self.preview_frame = QFrame()
+        self.preview_frame.setObjectName("PreviewFrame")
+        preview_layout = QVBoxLayout(self.preview_frame)
+        preview_layout.setContentsMargins(12, 10, 12, 10)
+        preview_layout.setSpacing(4)
+        self.preview_title_label = QLabel("No preview loaded")
+        self.preview_title_label.setObjectName("PreviewTitle")
+        self.preview_title_label.setWordWrap(True)
+        self.preview_detail_label = QLabel("Paste a URL and click Preview.")
+        self.preview_detail_label.setObjectName("MutedLabel")
+        self.preview_detail_label.setWordWrap(True)
+        preview_layout.addWidget(self.preview_title_label)
+        preview_layout.addWidget(self.preview_detail_label)
 
         self.video_radio = QRadioButton("Video")
         self.audio_radio = QRadioButton("Audio only")
@@ -158,7 +178,8 @@ class URLiftWindow(QMainWindow):
         self.status_label.setMinimumWidth(130)
 
         form_layout.addRow("Platform", self.platform_combo)
-        form_layout.addRow("URL", self.url_input)
+        form_layout.addRow("URL", url_layout)
+        form_layout.addRow("Preview", self.preview_frame)
         form_layout.addRow("Output type", output_type_layout)
         form_layout.addRow("Quality / format", self.quality_combo)
         form_layout.addRow("Output folder", output_folder_layout)
@@ -192,6 +213,27 @@ class URLiftWindow(QMainWindow):
         )
         if folder:
             self.output_folder_input.setText(folder)
+
+    def preview_url(self) -> None:
+        if self.preview_worker is not None:
+            return
+
+        platform = self.platform_combo.currentText()
+        url = self.url_input.text().strip()
+        url_valid, url_error = validate_url(url, platform)
+        if not url_valid:
+            self._set_preview("Preview unavailable", url_error)
+            self._set_status(url_error)
+            return
+
+        self.preview_worker = PreviewWorker(url)
+        self.preview_worker.completed.connect(self._on_preview_completed)
+        self.preview_worker.failed.connect(self._on_preview_failed)
+        self.preview_worker.finished.connect(self._on_preview_finished)
+        self.preview_button.setEnabled(False)
+        self._set_preview("Checking URL", "Loading media details...")
+        self._set_status("Checking URL")
+        self.preview_worker.start()
 
     def start_download(self) -> None:
         platform = self.platform_combo.currentText()
@@ -233,6 +275,31 @@ class URLiftWindow(QMainWindow):
 
     def _selected_output_type(self) -> str:
         return "Audio only" if self.audio_radio.isChecked() else "Video"
+
+    def _on_preview_completed(self, payload: dict) -> None:
+        detail = " | ".join(
+            part
+            for part in (
+                payload.get("uploader"),
+                self._format_duration(payload.get("duration")),
+                payload.get("extractor"),
+            )
+            if part
+        )
+        self._set_preview(payload.get("title") or "(unknown title)", detail or "Preview loaded")
+        if self.worker is None:
+            self._set_status("Ready")
+
+    def _on_preview_failed(self, error: str) -> None:
+        self._set_preview("Preview unavailable", error or "Failed")
+        self._set_status("Unsupported URL" if "unsupported" in error.lower() else "Failed")
+
+    def _on_preview_finished(self) -> None:
+        worker = self.preview_worker
+        self.preview_worker = None
+        if worker:
+            worker.deleteLater()
+        self.preview_button.setEnabled(self.worker is None)
 
     def _on_download_progress(self, status: str, percent: float | None, message: str) -> None:
         self._set_status(status if status else message)
@@ -311,8 +378,22 @@ class URLiftWindow(QMainWindow):
         self.quality_combo.setEnabled(not busy)
         self.output_folder_input.setEnabled(not busy)
         self.browse_button.setEnabled(not busy)
+        self.preview_button.setEnabled(not busy and self.preview_worker is None)
         self.download_button.setEnabled(not busy)
         self.download_button.setText("Downloading" if busy else "Download")
+
+    def _set_preview(self, title: str, detail: str) -> None:
+        self.preview_title_label.setText(title)
+        self.preview_detail_label.setText(detail)
+
+    def _format_duration(self, seconds: int | None) -> str:
+        if seconds is None:
+            return ""
+        minutes, remainder = divmod(int(seconds), 60)
+        hours, minutes = divmod(minutes, 60)
+        if hours:
+            return f"{hours}:{minutes:02d}:{remainder:02d}"
+        return f"{minutes}:{remainder:02d}"
 
     def _set_status(self, status: str) -> None:
         self.status_label.setText(status)

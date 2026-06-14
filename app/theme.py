@@ -88,6 +88,21 @@ QFrame#FormFrame {
     padding: 18px;
 }
 
+QFrame#PreviewFrame {
+    background: #1e1f22;
+    border: 1px solid #3f4147;
+    border-radius: 8px;
+}
+
+QLabel#PreviewTitle {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+QLabel#MutedLabel {
+    color: #949ba4;
+}
+
 QLineEdit,
 QComboBox {
     background: #1e1f22;
