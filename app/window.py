@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QProgressBar,
     QRadioButton,
@@ -33,7 +34,8 @@ from PySide6.QtWidgets import (
 from app.history_view import HistoryView
 from app.resources import resource_path
 from app.theme import APP_STYLESHEET
-from app.worker import DownloadRequest, DownloadWorker, PreviewWorker
+from app.update import APP_VERSION, installed_ytdlp_version
+from app.worker import DownloadRequest, DownloadWorker, PreviewWorker, YtdlpCheckWorker, YtdlpUpdateWorker
 from downloader.config import default_download_dir
 from downloader.formats import M4A_AUDIO, MP3_AUDIO, VIDEO_1080P, VIDEO_480P, VIDEO_720P, VIDEO_BEST
 from downloader.validators import PLATFORMS, platform_help, validate_output_dir, validate_url
@@ -59,6 +61,9 @@ class URLiftWindow(QMainWindow):
         self.settings = self.settings_repository.load()
         self.worker: DownloadWorker | None = None
         self.preview_worker: PreviewWorker | None = None
+        self.ytdlp_check_worker: YtdlpCheckWorker | None = None
+        self.ytdlp_update_worker: YtdlpUpdateWorker | None = None
+        self.ytdlp_update_available = False
         self.queue: list[DownloadRequest] = []
         self.queue_active = False
 
@@ -215,6 +220,19 @@ class URLiftWindow(QMainWindow):
         after_download_layout.addWidget(self.open_folder_check)
         after_download_layout.addStretch(1)
 
+        self.engine_status_label = QLabel(self._engine_status_text())
+        self.engine_status_label.setObjectName("MutedLabel")
+        self.engine_status_label.setWordWrap(True)
+        self.check_updates_button = QPushButton("Check updates")
+        self.update_ytdlp_button = QPushButton("Update yt-dlp")
+        self.update_ytdlp_button.setEnabled(False)
+        self.check_updates_button.clicked.connect(self.check_ytdlp_updates)
+        self.update_ytdlp_button.clicked.connect(self.update_ytdlp_engine)
+        engine_layout = QHBoxLayout()
+        engine_layout.addWidget(self.engine_status_label, 1)
+        engine_layout.addWidget(self.check_updates_button)
+        engine_layout.addWidget(self.update_ytdlp_button)
+
         self.status_label = QLabel("Ready")
         self.status_label.setObjectName("StatusLabel")
         self.status_label.setAlignment(Qt.AlignCenter)
@@ -228,6 +246,7 @@ class URLiftWindow(QMainWindow):
         form_layout.addRow("Quality / format", self.quality_combo)
         form_layout.addRow("Output folder", output_folder_layout)
         form_layout.addRow("After download", after_download_layout)
+        form_layout.addRow("Engine", engine_layout)
         form_layout.addRow("", action_layout)
         form_layout.addRow("Progress", self.progress_bar)
         form_layout.addRow("Status", self.status_label)
@@ -363,6 +382,28 @@ class URLiftWindow(QMainWindow):
     def clear_queue(self) -> None:
         self.queue.clear()
         self._refresh_queue()
+
+    def check_ytdlp_updates(self) -> None:
+        if self.ytdlp_check_worker is not None:
+            return
+        self.engine_status_label.setText("Checking yt-dlp updates...")
+        self.ytdlp_check_worker = YtdlpCheckWorker()
+        self.ytdlp_check_worker.completed.connect(self._on_ytdlp_check_completed)
+        self.ytdlp_check_worker.failed.connect(self._on_ytdlp_check_failed)
+        self.ytdlp_check_worker.finished.connect(self._on_ytdlp_check_finished)
+        self._refresh_update_actions(self.worker is not None)
+        self.ytdlp_check_worker.start()
+
+    def update_ytdlp_engine(self) -> None:
+        if self.ytdlp_update_worker is not None:
+            return
+        self.engine_status_label.setText("Updating yt-dlp...")
+        self.ytdlp_update_worker = YtdlpUpdateWorker()
+        self.ytdlp_update_worker.completed.connect(self._on_ytdlp_update_completed)
+        self.ytdlp_update_worker.failed.connect(self._on_ytdlp_update_failed)
+        self.ytdlp_update_worker.finished.connect(self._on_ytdlp_update_finished)
+        self._refresh_update_actions(self.worker is not None)
+        self.ytdlp_update_worker.start()
 
     def retry_history_item(self, item: HistoryItem) -> None:
         output_dir = default_download_dir()
@@ -570,6 +611,7 @@ class URLiftWindow(QMainWindow):
         self.cancel_button.setVisible(busy)
         self.cancel_button.setEnabled(busy)
         self._refresh_queue_actions(busy)
+        self._refresh_update_actions(busy)
 
     def _refresh_queue(self) -> None:
         self.queue_table.setRowCount(len(self.queue))
@@ -592,6 +634,49 @@ class URLiftWindow(QMainWindow):
         self.start_queue_button.setEnabled(not busy and has_items)
         self.remove_queue_button.setEnabled(not busy and has_items)
         self.clear_queue_button.setEnabled(not busy and has_items)
+
+    def _on_ytdlp_check_completed(self, payload: dict) -> None:
+        installed = payload["installed_version"]
+        latest = payload["latest_version"]
+        self.ytdlp_update_available = bool(payload["update_available"])
+        if self.ytdlp_update_available:
+            self.engine_status_label.setText(f"yt-dlp {installed} installed; {latest} is available.")
+        else:
+            self.engine_status_label.setText(f"yt-dlp is up to date ({installed}).")
+
+    def _on_ytdlp_check_failed(self, error: str) -> None:
+        self.engine_status_label.setText(error or "Update check failed")
+
+    def _on_ytdlp_check_finished(self) -> None:
+        worker = self.ytdlp_check_worker
+        self.ytdlp_check_worker = None
+        if worker:
+            worker.deleteLater()
+        self._refresh_update_actions(self.worker is not None)
+
+    def _on_ytdlp_update_completed(self) -> None:
+        self.ytdlp_update_available = False
+        self.engine_status_label.setText("yt-dlp updated. Restart URLift to use the new version.")
+        QMessageBox.information(self, "URLift", "yt-dlp was updated. Restart URLift before downloading again.")
+
+    def _on_ytdlp_update_failed(self, error: str) -> None:
+        self.engine_status_label.setText(error or "yt-dlp update failed")
+        QMessageBox.warning(self, "URLift", error or "yt-dlp update failed")
+
+    def _on_ytdlp_update_finished(self) -> None:
+        worker = self.ytdlp_update_worker
+        self.ytdlp_update_worker = None
+        if worker:
+            worker.deleteLater()
+        self._refresh_update_actions(self.worker is not None)
+
+    def _refresh_update_actions(self, busy: bool) -> None:
+        updating = self.ytdlp_check_worker is not None or self.ytdlp_update_worker is not None
+        self.check_updates_button.setEnabled(not busy and not updating)
+        self.update_ytdlp_button.setEnabled(not busy and not updating and self.ytdlp_update_available)
+
+    def _engine_status_text(self) -> str:
+        return f"URLift {APP_VERSION} | yt-dlp {installed_ytdlp_version()}"
 
     def _apply_settings(self) -> None:
         if self.settings.default_platform in PLATFORMS:
