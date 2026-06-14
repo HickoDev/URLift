@@ -35,6 +35,44 @@ class DownloadResult:
     extension: str
 
 
+@dataclass(frozen=True)
+class MediaInfo:
+    title: str
+    uploader: str
+    duration: int | None
+    extractor: str
+    webpage_url: str
+
+
+def fetch_metadata(url: str) -> MediaInfo:
+    """Fetch media metadata without downloading the file."""
+    options = {
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+        "ignoreerrors": False,
+        "skip_download": True,
+    }
+    try:
+        with YoutubeDL(options) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except YtdlpDownloadError as exc:
+        raise URLiftDownloadError(_clean_error(str(exc))) from exc
+    except Exception as exc:
+        raise URLiftDownloadError(_clean_error(str(exc)) or "Failed") from exc
+
+    if not info:
+        raise URLiftDownloadError("Unsupported URL")
+
+    return MediaInfo(
+        title=str(info.get("title") or "(unknown title)"),
+        uploader=str(info.get("uploader") or info.get("channel") or "(unknown uploader)"),
+        duration=_duration_from_info(info),
+        extractor=str(info.get("extractor_key") or info.get("extractor") or "Unknown"),
+        webpage_url=str(info.get("webpage_url") or url),
+    )
+
+
 def download_video(
     url: str,
     quality: str,
@@ -207,6 +245,16 @@ def _percent_from_progress(data: dict) -> float | None:
     if not downloaded or not total:
         return None
     return max(0.0, min(100.0, downloaded / total * 100))
+
+
+def _duration_from_info(info: dict) -> int | None:
+    duration = info.get("duration")
+    if duration is None:
+        return None
+    try:
+        return int(duration)
+    except (TypeError, ValueError):
+        return None
 
 
 def _resolve_file_path(
