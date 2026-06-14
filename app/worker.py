@@ -7,6 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
+from app.update import check_ytdlp_update, update_ytdlp
 from downloader.core import (
     DownloadCancelledError,
     FFmpegMissingError,
@@ -129,3 +130,36 @@ class PreviewWorker(QThread):
                 "webpage_url": info.webpage_url,
             }
         )
+
+
+class YtdlpCheckWorker(QThread):
+    completed = Signal(dict)
+    failed = Signal(str)
+
+    def run(self) -> None:
+        try:
+            info = check_ytdlp_update()
+        except Exception as exc:
+            self.failed.emit(str(exc) or "Update check failed")
+            return
+
+        self.completed.emit(
+            {
+                "installed_version": info.installed_version,
+                "latest_version": info.latest_version,
+                "update_available": info.update_available,
+            }
+        )
+
+
+class YtdlpUpdateWorker(QThread):
+    completed = Signal()
+    failed = Signal(str)
+
+    def run(self) -> None:
+        try:
+            update_ytdlp()
+        except Exception as exc:
+            self.failed.emit(str(exc) or "yt-dlp update failed")
+            return
+        self.completed.emit()
