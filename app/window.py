@@ -132,10 +132,13 @@ class URLiftWindow(QMainWindow):
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("Paste a media URL")
         self.url_input.setMinimumWidth(420)
+        self.paste_button = QPushButton("Paste")
+        self.paste_button.clicked.connect(self.paste_url)
         self.preview_button = QPushButton("Preview")
         self.preview_button.clicked.connect(self.preview_url)
         url_layout = QHBoxLayout()
         url_layout.addWidget(self.url_input, 1)
+        url_layout.addWidget(self.paste_button)
         url_layout.addWidget(self.preview_button)
 
         self.preview_frame = QFrame()
@@ -294,6 +297,11 @@ class URLiftWindow(QMainWindow):
         if folder:
             self.output_folder_input.setText(folder)
             self._save_settings()
+
+    def paste_url(self) -> None:
+        text = QApplication.clipboard().text().strip()
+        if text:
+            self.url_input.setText(text)
 
     def preview_url(self) -> None:
         if self.preview_worker is not None:
@@ -514,6 +522,7 @@ class URLiftWindow(QMainWindow):
         self.open_file_check.setEnabled(not busy)
         self.open_folder_check.setEnabled(not busy)
         self.browse_button.setEnabled(not busy)
+        self.paste_button.setEnabled(not busy)
         self.preview_button.setEnabled(not busy and self.preview_worker is None)
         self.download_button.setEnabled(not busy)
         self.download_button.setText("Downloading" if busy else "Download")
