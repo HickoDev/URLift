@@ -37,6 +37,7 @@ from app.worker import DownloadRequest, DownloadWorker, PreviewWorker
 from downloader.config import default_download_dir
 from downloader.formats import M4A_AUDIO, MP3_AUDIO, VIDEO_1080P, VIDEO_480P, VIDEO_720P, VIDEO_BEST
 from downloader.validators import PLATFORMS, validate_output_dir, validate_url
+from storage.history_repository import HistoryItem
 from storage.history_repository import HistoryRepository
 from storage.settings_repository import AppSettings, SettingsRepository
 
@@ -67,6 +68,7 @@ class URLiftWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.download_tab = self._build_download_tab()
         self.history_view = HistoryView(self.repository)
+        self.history_view.retry_requested.connect(self.retry_history_item)
         self.tabs.addTab(self.download_tab, "Download")
         self.tabs.addTab(self.history_view, "History")
 
@@ -357,6 +359,41 @@ class URLiftWindow(QMainWindow):
     def clear_queue(self) -> None:
         self.queue.clear()
         self._refresh_queue()
+
+    def retry_history_item(self, item: HistoryItem) -> None:
+        output_dir = default_download_dir()
+        if item.saved_file_path:
+            saved_parent = Path(item.saved_file_path).parent
+            if saved_parent.exists():
+                output_dir = saved_parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        platform = item.platform if item.platform in PLATFORMS else "Other / Auto-detect"
+        self.platform_combo.setCurrentText(platform)
+        self.url_input.setText(item.original_url)
+        self.audio_radio.setChecked(item.output_type == "Audio only")
+        self.video_radio.setChecked(item.output_type != "Audio only")
+        self._set_quality_options()
+        if item.selected_quality:
+            self.quality_combo.setCurrentText(item.selected_quality)
+        self.output_folder_input.setText(str(output_dir))
+        self.tabs.setCurrentWidget(self.download_tab)
+        self._save_settings()
+
+        request = DownloadRequest(
+            platform=platform,
+            url=item.original_url,
+            output_type=item.output_type,
+            quality=item.selected_quality,
+            output_dir=output_dir,
+        )
+        if self.worker is not None:
+            self.queue.append(request)
+            self._refresh_queue()
+            self._set_status("Ready")
+            return
+        self.queue_active = False
+        self._start_worker(request)
 
     def _current_request(self, record_errors: bool) -> DownloadRequest | None:
         platform = self.platform_combo.currentText()
