@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
+    QCheckBox,
     QHeaderView,
     QSizePolicy,
     QFileDialog,
@@ -36,6 +38,7 @@ from downloader.config import default_download_dir
 from downloader.formats import M4A_AUDIO, MP3_AUDIO, VIDEO_1080P, VIDEO_480P, VIDEO_720P, VIDEO_BEST
 from downloader.validators import PLATFORMS, validate_output_dir, validate_url
 from storage.history_repository import HistoryRepository
+from storage.settings_repository import AppSettings, SettingsRepository
 
 
 LEGAL_NOTE = (
@@ -51,6 +54,8 @@ class URLiftWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.repository = HistoryRepository()
+        self.settings_repository = SettingsRepository()
+        self.settings = self.settings_repository.load()
         self.worker: DownloadWorker | None = None
         self.preview_worker: PreviewWorker | None = None
         self.queue: list[DownloadRequest] = []
@@ -68,6 +73,8 @@ class URLiftWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         self._apply_style()
         self._set_quality_options()
+        self._apply_settings()
+        self._connect_settings_signals()
         self._set_status("Ready")
 
     def _build_download_tab(self) -> QWidget:
@@ -157,7 +164,7 @@ class URLiftWindow(QMainWindow):
         self.quality_combo = QComboBox()
         self.quality_combo.setMinimumWidth(420)
 
-        download_dir = default_download_dir()
+        download_dir = Path(self.settings.default_output_folder or str(default_download_dir()))
         download_dir.mkdir(parents=True, exist_ok=True)
         self.output_folder_input = QLineEdit(str(download_dir))
         self.output_folder_input.setPlaceholderText("Choose an output folder")
@@ -193,6 +200,13 @@ class URLiftWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
 
+        self.open_file_check = QCheckBox("Open file when complete")
+        self.open_folder_check = QCheckBox("Open folder when complete")
+        after_download_layout = QHBoxLayout()
+        after_download_layout.addWidget(self.open_file_check)
+        after_download_layout.addWidget(self.open_folder_check)
+        after_download_layout.addStretch(1)
+
         self.status_label = QLabel("Ready")
         self.status_label.setObjectName("StatusLabel")
         self.status_label.setAlignment(Qt.AlignCenter)
@@ -204,6 +218,7 @@ class URLiftWindow(QMainWindow):
         form_layout.addRow("Output type", output_type_layout)
         form_layout.addRow("Quality / format", self.quality_combo)
         form_layout.addRow("Output folder", output_folder_layout)
+        form_layout.addRow("After download", after_download_layout)
         form_layout.addRow("", action_layout)
         form_layout.addRow("Progress", self.progress_bar)
         form_layout.addRow("Status", self.status_label)
@@ -278,6 +293,7 @@ class URLiftWindow(QMainWindow):
         )
         if folder:
             self.output_folder_input.setText(folder)
+            self._save_settings()
 
     def preview_url(self) -> None:
         if self.preview_worker is not None:
@@ -437,6 +453,7 @@ class URLiftWindow(QMainWindow):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(100)
         self._set_status("Completed")
+        self._open_after_download(Path(payload["file_path"]))
 
     def _on_download_failed(self, payload: dict) -> None:
         status = payload.get("status") or "Failed"
@@ -494,6 +511,8 @@ class URLiftWindow(QMainWindow):
         self.audio_radio.setEnabled(not busy)
         self.quality_combo.setEnabled(not busy)
         self.output_folder_input.setEnabled(not busy)
+        self.open_file_check.setEnabled(not busy)
+        self.open_folder_check.setEnabled(not busy)
         self.browse_button.setEnabled(not busy)
         self.preview_button.setEnabled(not busy and self.preview_worker is None)
         self.download_button.setEnabled(not busy)
@@ -523,6 +542,61 @@ class URLiftWindow(QMainWindow):
         self.start_queue_button.setEnabled(not busy and has_items)
         self.remove_queue_button.setEnabled(not busy and has_items)
         self.clear_queue_button.setEnabled(not busy and has_items)
+
+    def _apply_settings(self) -> None:
+        if self.settings.default_platform in PLATFORMS:
+            self.platform_combo.setCurrentText(self.settings.default_platform)
+        self.audio_radio.setChecked(self.settings.default_output_type == "Audio only")
+        self.video_radio.setChecked(self.settings.default_output_type != "Audio only")
+        self._set_quality_options()
+        preferred_quality = (
+            self.settings.default_audio_quality
+            if self.audio_radio.isChecked()
+            else self.settings.default_video_quality
+        )
+        if preferred_quality:
+            self.quality_combo.setCurrentText(preferred_quality)
+        self.output_folder_input.setText(self.settings.default_output_folder)
+        self.open_file_check.setChecked(self.settings.open_file_after_download)
+        self.open_folder_check.setChecked(self.settings.open_folder_after_download)
+
+    def _connect_settings_signals(self) -> None:
+        self.platform_combo.currentTextChanged.connect(lambda _text: self._save_settings())
+        self.quality_combo.currentTextChanged.connect(lambda _text: self._save_settings())
+        self.video_radio.toggled.connect(lambda _checked: self._save_settings())
+        self.audio_radio.toggled.connect(lambda _checked: self._save_settings())
+        self.output_folder_input.editingFinished.connect(self._save_settings)
+        self.open_file_check.toggled.connect(lambda _checked: self._save_settings())
+        self.open_folder_check.toggled.connect(lambda _checked: self._save_settings())
+
+    def _save_settings(self) -> None:
+        if not hasattr(self, "quality_combo"):
+            return
+        video_quality = self.settings.default_video_quality
+        audio_quality = self.settings.default_audio_quality
+        if self.video_radio.isChecked() and self.quality_combo.currentText():
+            video_quality = self.quality_combo.currentText()
+        if self.audio_radio.isChecked() and self.quality_combo.currentText():
+            audio_quality = self.quality_combo.currentText()
+
+        self.settings = AppSettings(
+            default_output_folder=self.output_folder_input.text().strip() or str(default_download_dir()),
+            default_platform=self.platform_combo.currentText(),
+            default_output_type=self._selected_output_type(),
+            default_video_quality=video_quality,
+            default_audio_quality=audio_quality,
+            open_file_after_download=self.open_file_check.isChecked(),
+            open_folder_after_download=self.open_folder_check.isChecked(),
+            keep_history=self.settings.keep_history,
+            convert_video_for_windows=self.settings.convert_video_for_windows,
+        )
+        self.settings_repository.save(self.settings)
+
+    def _open_after_download(self, file_path: Path) -> None:
+        if self.open_file_check.isChecked() and file_path.is_file():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path)))
+        if self.open_folder_check.isChecked() and file_path.parent.exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path.parent)))
 
     def _set_preview(self, title: str, detail: str) -> None:
         self.preview_title_label.setText(title)
