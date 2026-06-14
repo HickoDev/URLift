@@ -64,7 +64,33 @@ The packaged app is created at:
 dist/URLift.exe
 ```
 
-`build.bat` uses `assets\icon.ico` when that file exists. If it is missing, the script builds without a custom icon. To add a custom app icon, place a Windows `.ico` file at `assets\icon.ico` and run `build.bat` again.
+`build.bat` uses `assets\icon.ico` for the Windows app icon and bundles `Logo.png` for the in-app header.
+
+## Build Windows Installer
+
+URLift includes an optional Inno Setup script. First build the executable:
+
+```bat
+build.bat
+```
+
+Then install Inno Setup and run:
+
+```bat
+build_installer.bat
+```
+
+The installer is created at:
+
+```text
+dist/URLift-Setup.exe
+```
+
+To validate the installer files without Inno Setup:
+
+```bat
+build_installer.bat --check
+```
 
 ## FFmpeg On Windows
 
