@@ -7,6 +7,8 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QHeaderView,
     QSizePolicy,
     QFileDialog,
     QComboBox,
@@ -20,6 +22,8 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QRadioButton,
     QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -49,6 +53,8 @@ class URLiftWindow(QMainWindow):
         self.repository = HistoryRepository()
         self.worker: DownloadWorker | None = None
         self.preview_worker: PreviewWorker | None = None
+        self.queue: list[DownloadRequest] = []
+        self.queue_active = False
 
         self.setWindowTitle("URLift")
         self.resize(980, 680)
@@ -171,8 +177,14 @@ class URLiftWindow(QMainWindow):
         self.cancel_button.setMinimumWidth(120)
         self.cancel_button.setVisible(False)
         self.cancel_button.clicked.connect(self.cancel_download)
+        self.add_queue_button = QPushButton("Add to queue")
+        self.add_queue_button.clicked.connect(self.add_current_to_queue)
+        self.start_queue_button = QPushButton("Start queue")
+        self.start_queue_button.clicked.connect(self.start_queue)
         action_layout = QHBoxLayout()
         action_layout.addWidget(self.download_button)
+        action_layout.addWidget(self.add_queue_button)
+        action_layout.addWidget(self.start_queue_button)
         action_layout.addWidget(self.cancel_button)
         action_layout.addStretch(1)
 
@@ -197,11 +209,55 @@ class URLiftWindow(QMainWindow):
         form_layout.addRow("Status", self.status_label)
 
         form_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        queue_frame = self._build_queue_frame()
         layout.addLayout(header_layout)
         layout.addWidget(note)
         layout.addWidget(form_frame)
+        layout.addWidget(queue_frame)
         layout.addStretch(1)
         return tab
+
+    def _build_queue_frame(self) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("QueueFrame")
+
+        title = QLabel("Queue")
+        title.setObjectName("SectionTitle")
+
+        self.queue_table = QTableWidget(0, 4)
+        self.queue_table.setHorizontalHeaderLabels(("Platform", "URL", "Format", "Folder"))
+        self.queue_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.queue_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.queue_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.queue_table.setAlternatingRowColors(True)
+        self.queue_table.setShowGrid(False)
+        self.queue_table.setMinimumHeight(130)
+        self.queue_table.verticalHeader().setVisible(False)
+        self.queue_table.verticalHeader().setDefaultSectionSize(34)
+        self.queue_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.queue_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.queue_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+
+        self.remove_queue_button = QPushButton("Remove")
+        self.clear_queue_button = QPushButton("Clear queue")
+        self.remove_queue_button.setObjectName("DangerButton")
+        self.clear_queue_button.setObjectName("DangerButton")
+        self.remove_queue_button.clicked.connect(self.remove_selected_queue_item)
+        self.clear_queue_button.clicked.connect(self.clear_queue)
+
+        actions = QHBoxLayout()
+        actions.addStretch(1)
+        actions.addWidget(self.remove_queue_button)
+        actions.addWidget(self.clear_queue_button)
+
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(10)
+        layout.addWidget(title)
+        layout.addWidget(self.queue_table)
+        layout.addLayout(actions)
+        self._refresh_queue()
+        return frame
 
     def _set_quality_options(self) -> None:
         current = self.quality_combo.currentText() if hasattr(self, "quality_combo") else ""
@@ -245,6 +301,40 @@ class URLiftWindow(QMainWindow):
         self.preview_worker.start()
 
     def start_download(self) -> None:
+        request = self._current_request(record_errors=True)
+        if not request:
+            return
+        self.queue_active = False
+        self._start_worker(request)
+
+    def add_current_to_queue(self) -> None:
+        request = self._current_request(record_errors=False)
+        if not request:
+            return
+        self.queue.append(request)
+        self._refresh_queue()
+        self._set_status("Ready")
+
+    def start_queue(self) -> None:
+        if self.worker or not self.queue:
+            return
+        self.queue_active = True
+        request = self.queue.pop(0)
+        self._refresh_queue()
+        self._start_worker(request)
+
+    def remove_selected_queue_item(self) -> None:
+        row = self.queue_table.currentRow()
+        if row < 0 or row >= len(self.queue):
+            return
+        del self.queue[row]
+        self._refresh_queue()
+
+    def clear_queue(self) -> None:
+        self.queue.clear()
+        self._refresh_queue()
+
+    def _current_request(self, record_errors: bool) -> DownloadRequest | None:
         platform = self.platform_combo.currentText()
         url = self.url_input.text().strip()
         output_type = self._selected_output_type()
@@ -253,23 +343,29 @@ class URLiftWindow(QMainWindow):
 
         url_valid, url_error = validate_url(url, platform)
         if not url_valid:
-            self._record_failed_attempt(platform, url, output_type, quality, url_error)
+            if record_errors:
+                self._record_failed_attempt(platform, url, output_type, quality, url_error)
             self._set_status(url_error)
-            return
+            return None
 
         folder_valid, folder_error = validate_output_dir(output_dir)
         if not folder_valid:
-            self._record_failed_attempt(platform, url, output_type, quality, folder_error)
+            if record_errors:
+                self._record_failed_attempt(platform, url, output_type, quality, folder_error)
             self._set_status(folder_error)
-            return
+            return None
 
-        request = DownloadRequest(
+        return DownloadRequest(
             platform=platform,
             url=url,
             output_type=output_type,
             quality=quality,
             output_dir=Path(output_dir),
         )
+
+    def _start_worker(self, request: DownloadRequest) -> None:
+        if self.worker is not None:
+            return
         self.worker = DownloadWorker(request)
         self.worker.progress.connect(self._on_download_progress)
         self.worker.completed.connect(self._on_download_completed)
@@ -285,6 +381,7 @@ class URLiftWindow(QMainWindow):
     def cancel_download(self) -> None:
         if not self.worker:
             return
+        self.queue_active = False
         self.cancel_button.setEnabled(False)
         self.worker.cancel()
         self._set_status("Canceling")
@@ -366,6 +463,10 @@ class URLiftWindow(QMainWindow):
         if worker:
             worker.deleteLater()
         self._set_busy(False)
+        if self.queue_active and self.queue:
+            self.start_queue()
+        elif self.queue_active:
+            self.queue_active = False
 
     def _record_failed_attempt(
         self,
@@ -399,6 +500,29 @@ class URLiftWindow(QMainWindow):
         self.download_button.setText("Downloading" if busy else "Download")
         self.cancel_button.setVisible(busy)
         self.cancel_button.setEnabled(busy)
+        self._refresh_queue_actions(busy)
+
+    def _refresh_queue(self) -> None:
+        self.queue_table.setRowCount(len(self.queue))
+        for row, request in enumerate(self.queue):
+            values = (
+                request.platform,
+                request.url,
+                request.quality,
+                str(request.output_dir),
+            )
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(value)
+                cell.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+                self.queue_table.setItem(row, column, cell)
+        self._refresh_queue_actions(self.worker is not None)
+
+    def _refresh_queue_actions(self, busy: bool) -> None:
+        has_items = bool(self.queue)
+        self.add_queue_button.setEnabled(not busy)
+        self.start_queue_button.setEnabled(not busy and has_items)
+        self.remove_queue_button.setEnabled(not busy and has_items)
+        self.clear_queue_button.setEnabled(not busy and has_items)
 
     def _set_preview(self, title: str, detail: str) -> None:
         self.preview_title_label.setText(title)

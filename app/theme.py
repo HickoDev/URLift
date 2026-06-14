@@ -103,6 +103,18 @@ QLabel#MutedLabel {
     color: #949ba4;
 }
 
+QLabel#SectionTitle {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+QFrame#QueueFrame {
+    background: #2b2d31;
+    border: 1px solid #1e1f22;
+    border-radius: 8px;
+}
+
 QLineEdit,
 QComboBox {
     background: #1e1f22;
