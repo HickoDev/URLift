@@ -20,6 +20,17 @@ URLift uses:
 - SQLite for local download history
 - PyInstaller for Windows `.exe` packaging
 
+Current app features include:
+
+- URL metadata preview before download
+- sequential download queue
+- cancel button for active downloads
+- saved preferences for platform, output folder, format, and post-download actions
+- optional open file/open folder after completion
+- clipboard paste for URLs
+- history search, status filtering, and retry
+- yt-dlp version check and source-environment update support
+
 ## Legal And Safety Notice
 
 URLift is intended only for downloading:
@@ -115,9 +126,11 @@ URLift stores local download history in SQLite under the current user's app data
 
 The History tab supports:
 
+- Search and status filtering
 - Open file
 - Open folder
 - Copy original URL
+- Retry download
 - Remove item from history
 - Clear all history
 
