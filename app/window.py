@@ -36,7 +36,7 @@ from app.theme import APP_STYLESHEET
 from app.worker import DownloadRequest, DownloadWorker, PreviewWorker
 from downloader.config import default_download_dir
 from downloader.formats import M4A_AUDIO, MP3_AUDIO, VIDEO_1080P, VIDEO_480P, VIDEO_720P, VIDEO_BEST
-from downloader.validators import PLATFORMS, validate_output_dir, validate_url
+from downloader.validators import PLATFORMS, platform_help, validate_output_dir, validate_url
 from storage.history_repository import HistoryItem
 from storage.history_repository import HistoryRepository
 from storage.settings_repository import AppSettings, SettingsRepository
@@ -130,6 +130,9 @@ class URLiftWindow(QMainWindow):
         self.platform_combo = QComboBox()
         self.platform_combo.addItems(PLATFORMS)
         self.platform_combo.setMinimumWidth(420)
+        self.platform_help_label = QLabel(platform_help(self.platform_combo.currentText()))
+        self.platform_help_label.setObjectName("MutedLabel")
+        self.platform_help_label.setWordWrap(True)
 
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("Paste a media URL")
@@ -218,6 +221,7 @@ class URLiftWindow(QMainWindow):
         self.status_label.setMinimumWidth(130)
 
         form_layout.addRow("Platform", self.platform_combo)
+        form_layout.addRow("", self.platform_help_label)
         form_layout.addRow("URL", url_layout)
         form_layout.addRow("Preview", self.preview_frame)
         form_layout.addRow("Output type", output_type_layout)
@@ -605,8 +609,10 @@ class URLiftWindow(QMainWindow):
         self.output_folder_input.setText(self.settings.default_output_folder)
         self.open_file_check.setChecked(self.settings.open_file_after_download)
         self.open_folder_check.setChecked(self.settings.open_folder_after_download)
+        self._update_platform_help()
 
     def _connect_settings_signals(self) -> None:
+        self.platform_combo.currentTextChanged.connect(lambda _text: self._update_platform_help())
         self.platform_combo.currentTextChanged.connect(lambda _text: self._save_settings())
         self.quality_combo.currentTextChanged.connect(lambda _text: self._save_settings())
         self.video_radio.toggled.connect(lambda _checked: self._save_settings())
@@ -614,6 +620,9 @@ class URLiftWindow(QMainWindow):
         self.output_folder_input.editingFinished.connect(self._save_settings)
         self.open_file_check.toggled.connect(lambda _checked: self._save_settings())
         self.open_folder_check.toggled.connect(lambda _checked: self._save_settings())
+
+    def _update_platform_help(self) -> None:
+        self.platform_help_label.setText(platform_help(self.platform_combo.currentText()))
 
     def _save_settings(self) -> None:
         if not hasattr(self, "quality_combo"):

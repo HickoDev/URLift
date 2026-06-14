@@ -21,6 +21,19 @@ PLATFORM_DOMAINS = {
     "Facebook": ("facebook.com", "fb.watch"),
 }
 
+PLATFORM_HELP = {
+    "YouTube": "Use public YouTube URLs you own or have permission to download. Private, paid, or age-gated content may fail.",
+    "TikTok": "Use public TikTok video URLs. Region blocks, login walls, and removed videos may fail.",
+    "Instagram": "Use public Instagram post or reel URLs. Private accounts and login-only content are not supported.",
+    "Facebook": "Use public Facebook video URLs. Private posts, groups, and login-only content are not supported.",
+    "Other / Auto-detect": "Let yt-dlp auto-detect supported public URLs. URLift does not bypass platform restrictions.",
+}
+
+
+def platform_help(platform: str) -> str:
+    """Return short user-facing guidance for a selected platform."""
+    return PLATFORM_HELP.get(platform, PLATFORM_HELP["Other / Auto-detect"])
+
 
 def validate_url(url: str, platform: str) -> tuple[bool, str]:
     """Validate basic URL shape and platform-domain hints."""
@@ -49,4 +62,3 @@ def validate_output_dir(path: str) -> tuple[bool, str]:
         return False, "Invalid output folder"
 
     return True, ""
-
