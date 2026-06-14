@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Signal
 
 from downloader.core import (
+    DownloadCancelledError,
     FFmpegMissingError,
     URLiftDownloadError,
     download_audio,
@@ -33,6 +34,14 @@ class DownloadWorker(QThread):
     def __init__(self, request: DownloadRequest) -> None:
         super().__init__()
         self.request = request
+        self._cancel_requested = False
+
+    def cancel(self) -> None:
+        self._cancel_requested = True
+        self.requestInterruption()
+
+    def is_cancel_requested(self) -> bool:
+        return self._cancel_requested or self.isInterruptionRequested()
 
     def run(self) -> None:
         try:
@@ -48,6 +57,8 @@ class DownloadWorker(QThread):
                     "extension": result.extension,
                 }
             )
+        except DownloadCancelledError as exc:
+            self.failed.emit(self._failure_payload("Canceled", str(exc) or "Canceled"))
         except FFmpegMissingError as exc:
             self.failed.emit(self._failure_payload("FFmpeg missing", str(exc)))
         except URLiftDownloadError as exc:
@@ -63,6 +74,7 @@ class DownloadWorker(QThread):
                 self.request.quality,
                 self.request.output_dir,
                 self._progress_callback,
+                should_cancel=self.is_cancel_requested,
             )
 
         return download_video(
@@ -70,6 +82,7 @@ class DownloadWorker(QThread):
             self.request.quality,
             self.request.output_dir,
             self._progress_callback,
+            should_cancel=self.is_cancel_requested,
         )
 
     def _progress_callback(self, status: str, percent: float | None, message: str) -> None:
