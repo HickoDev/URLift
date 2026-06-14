@@ -18,6 +18,7 @@ from downloader.formats import video_format as video_preset
 
 
 ProgressCallback = Callable[[str, float | None, str], None]
+CancelCallback = Callable[[], bool]
 
 
 class URLiftDownloadError(Exception):
@@ -26,6 +27,10 @@ class URLiftDownloadError(Exception):
 
 class FFmpegMissingError(URLiftDownloadError):
     """Raised when FFmpeg is required but unavailable."""
+
+
+class DownloadCancelledError(URLiftDownloadError):
+    """Raised when a user cancels an active download."""
 
 
 @dataclass(frozen=True)
@@ -78,6 +83,7 @@ def download_video(
     quality: str,
     output_dir: Path | str,
     progress_callback: ProgressCallback | None = None,
+    should_cancel: CancelCallback | None = None,
 ) -> DownloadResult:
     """Download a video using the requested quality preset."""
     preset = video_preset(quality)
@@ -89,6 +95,7 @@ def download_video(
         progress_callback=progress_callback,
         postprocessors=[],
         force_aac_audio=True,
+        should_cancel=should_cancel,
     )
 
 
@@ -97,6 +104,7 @@ def download_audio(
     audio_format: str,
     output_dir: Path | str,
     progress_callback: ProgressCallback | None = None,
+    should_cancel: CancelCallback | None = None,
 ) -> DownloadResult:
     """Download and extract audio using the requested audio format."""
     preset = audio_preset(audio_format)
@@ -113,6 +121,7 @@ def download_audio(
             }
         ],
         force_aac_audio=False,
+        should_cancel=should_cancel,
     )
 
 
@@ -130,6 +139,7 @@ def _download(
     progress_callback: ProgressCallback | None,
     postprocessors: list[dict[str, str | None]],
     force_aac_audio: bool,
+    should_cancel: CancelCallback | None,
 ) -> DownloadResult:
     ffmpeg_path = find_ffmpeg()
     if not ffmpeg_path:
@@ -141,6 +151,7 @@ def _download(
         if progress_callback:
             progress_callback(status, percent, message or status)
 
+    _raise_if_cancelled(should_cancel)
     emit("Checking URL", 0.0)
 
     options = _ydl_options(
@@ -149,11 +160,14 @@ def _download(
         postprocessors=postprocessors,
         progress_callback=emit,
         ffmpeg_path=ffmpeg_path,
+        should_cancel=should_cancel,
     )
 
     try:
         with YoutubeDL(options) as ydl:
             info = ydl.extract_info(url, download=True)
+    except DownloadCancelledError:
+        raise
     except FFmpegMissingError:
         raise
     except YtdlpDownloadError as exc:
@@ -171,6 +185,7 @@ def _download(
         raise URLiftDownloadError("Unsupported URL")
 
     file_path = _resolve_file_path(info, output_dir, expected_extension, started_at)
+    _raise_if_cancelled(should_cancel)
     if force_aac_audio and file_path.suffix.lower() == ".mp4":
         emit("Converting", 100.0, "Converting")
         _convert_mp4_to_windows_compatible(file_path, ffmpeg_path)
@@ -191,6 +206,7 @@ def _ydl_options(
     postprocessors: list[dict[str, str | None]],
     progress_callback: Callable[[str, float | None, str | None], None],
     ffmpeg_path: Path,
+    should_cancel: CancelCallback | None,
 ) -> dict:
     return {
         "format": format_selector,
@@ -202,16 +218,18 @@ def _ydl_options(
         "quiet": True,
         "no_warnings": True,
         "ignoreerrors": False,
-        "progress_hooks": [_progress_hook(progress_callback)],
-        "postprocessor_hooks": [_postprocessor_hook(progress_callback)],
+        "progress_hooks": [_progress_hook(progress_callback, should_cancel)],
+        "postprocessor_hooks": [_postprocessor_hook(progress_callback, should_cancel)],
         "postprocessors": postprocessors,
     }
 
 
 def _progress_hook(
     callback: Callable[[str, float | None, str | None], None],
+    should_cancel: CancelCallback | None,
 ) -> Callable[[dict], None]:
     def hook(data: dict) -> None:
+        _raise_if_cancelled(should_cancel)
         status = data.get("status")
         if status == "downloading":
             percent = _percent_from_progress(data)
@@ -229,14 +247,21 @@ def _progress_hook(
 
 def _postprocessor_hook(
     callback: Callable[[str, float | None, str | None], None],
+    should_cancel: CancelCallback | None,
 ) -> Callable[[dict], None]:
     def hook(data: dict) -> None:
+        _raise_if_cancelled(should_cancel)
         if data.get("status") in {"started", "processing"}:
             callback("Converting", 100.0, "Converting")
         elif data.get("status") == "finished":
             callback("Completed", 100.0, "Completed")
 
     return hook
+
+
+def _raise_if_cancelled(should_cancel: CancelCallback | None) -> None:
+    if should_cancel and should_cancel():
+        raise DownloadCancelledError("Canceled")
 
 
 def _percent_from_progress(data: dict) -> float | None:
