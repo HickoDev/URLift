@@ -7,7 +7,13 @@ from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
-from downloader.core import FFmpegMissingError, URLiftDownloadError, download_audio, download_video
+from downloader.core import (
+    FFmpegMissingError,
+    URLiftDownloadError,
+    download_audio,
+    download_video,
+    fetch_metadata,
+)
 
 
 @dataclass(frozen=True)
@@ -81,3 +87,32 @@ class DownloadWorker(QThread):
             "status": status,
             "error": error,
         }
+
+
+class PreviewWorker(QThread):
+    completed = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, url: str) -> None:
+        super().__init__()
+        self.url = url
+
+    def run(self) -> None:
+        try:
+            info = fetch_metadata(self.url)
+        except URLiftDownloadError as exc:
+            self.failed.emit(str(exc) or "Failed")
+            return
+        except Exception as exc:
+            self.failed.emit(str(exc) or "Failed")
+            return
+
+        self.completed.emit(
+            {
+                "title": info.title,
+                "uploader": info.uploader,
+                "duration": info.duration,
+                "extractor": info.extractor,
+                "webpage_url": info.webpage_url,
+            }
+        )
