@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 from PySide6.QtCore import QThread, Signal
 
@@ -121,6 +123,7 @@ class PreviewWorker(QThread):
             self.failed.emit(str(exc) or "Failed")
             return
 
+        thumbnail_data = _download_thumbnail(info.thumbnail_url)
         self.completed.emit(
             {
                 "title": info.title,
@@ -128,6 +131,7 @@ class PreviewWorker(QThread):
                 "duration": info.duration,
                 "extractor": info.extractor,
                 "webpage_url": info.webpage_url,
+                "thumbnail_data": thumbnail_data,
             }
         )
 
@@ -163,3 +167,18 @@ class YtdlpUpdateWorker(QThread):
             self.failed.emit(str(exc) or "yt-dlp update failed")
             return
         self.completed.emit()
+
+
+def _download_thumbnail(url: str) -> bytes:
+    if not url:
+        return b""
+
+    try:
+        request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(request, timeout=10) as response:
+            content_type = response.headers.get("Content-Type", "")
+            if not content_type.lower().startswith("image/"):
+                return b""
+            return response.read(2_000_000)
+    except (OSError, URLError, ValueError):
+        return b""

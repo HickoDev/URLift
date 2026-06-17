@@ -94,6 +94,12 @@ QFrame#PreviewFrame {
     border-radius: 8px;
 }
 
+QLabel#PreviewThumbnail {
+    background: #111214;
+    border: 1px solid #3f4147;
+    border-radius: 6px;
+}
+
 QLabel#PreviewTitle {
     color: #ffffff;
     font-weight: 700;
@@ -121,8 +127,7 @@ QComboBox {
     border: 1px solid #3f4147;
     border-radius: 6px;
     color: #f2f3f5;
-    min-height: 34px;
-    padding: 6px 10px;
+    padding: 0 10px;
     selection-background-color: #5865f2;
 }
 
@@ -174,8 +179,7 @@ QPushButton {
     border: 0;
     border-radius: 6px;
     color: #ffffff;
-    min-height: 34px;
-    padding: 8px 14px;
+    padding: 0 14px;
 }
 
 QPushButton:hover {
@@ -214,7 +218,6 @@ QProgressBar {
     border: 1px solid #3f4147;
     border-radius: 6px;
     color: #ffffff;
-    min-height: 18px;
     text-align: center;
 }
 

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -40,8 +41,10 @@ class HistoryView(QWidget):
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search title, platform, URL, or path")
+        _set_field_height(self.search_input)
         self.status_filter = QComboBox()
         self.status_filter.addItems(("All statuses", "Completed", "Failed"))
+        _set_field_height(self.status_filter)
         self.search_input.textChanged.connect(lambda _text: self.refresh())
         self.status_filter.currentTextChanged.connect(lambda _text: self.refresh())
 
@@ -67,6 +70,15 @@ class HistoryView(QWidget):
         self.clear_button = QPushButton("Clear all history")
         self.remove_button.setObjectName("DangerButton")
         self.clear_button.setObjectName("DangerButton")
+        for button in (
+            self.open_file_button,
+            self.open_folder_button,
+            self.copy_url_button,
+            self.retry_button,
+            self.remove_button,
+            self.clear_button,
+        ):
+            _set_button_height(button)
 
         self.open_file_button.clicked.connect(self.open_selected_file)
         self.open_folder_button.clicked.connect(self.open_selected_folder)
@@ -222,3 +234,13 @@ def _display_date(value: str) -> str:
     except ValueError:
         return value
     return parsed.strftime("%Y-%m-%d %H:%M")
+
+
+def _set_field_height(widget: QWidget) -> None:
+    widget.setMinimumHeight(40)
+    widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+
+def _set_button_height(widget: QWidget) -> None:
+    widget.setMinimumHeight(40)
+    widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QProgressBar,
     QRadioButton,
+    QScrollArea,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -38,7 +39,7 @@ from app.update import APP_VERSION, installed_ytdlp_version
 from app.worker import DownloadRequest, DownloadWorker, PreviewWorker, YtdlpCheckWorker, YtdlpUpdateWorker
 from downloader.config import default_download_dir
 from downloader.formats import M4A_AUDIO, MP3_AUDIO, VIDEO_1080P, VIDEO_480P, VIDEO_720P, VIDEO_BEST
-from downloader.validators import PLATFORMS, platform_help, validate_output_dir, validate_url
+from downloader.validators import PLATFORMS, platform_from_url, platform_help, validate_output_dir, validate_url
 from storage.history_repository import HistoryItem
 from storage.history_repository import HistoryRepository
 from storage.settings_repository import AppSettings, SettingsRepository
@@ -68,14 +69,16 @@ class URLiftWindow(QMainWindow):
         self.queue_active = False
 
         self.setWindowTitle("URLift")
-        self.resize(980, 680)
+        self.setMinimumSize(720, 560)
+        self.resize(1120, 760)
 
         self.tabs = QTabWidget()
         self.download_tab = self._build_download_tab()
         self.history_view = HistoryView(self.repository)
         self.history_view.retry_requested.connect(self.retry_history_item)
+        self.history_tab = self._wrap_scrollable(self.history_view, Qt.ScrollBarAsNeeded)
         self.tabs.addTab(self.download_tab, "Download")
-        self.tabs.addTab(self.history_view, "History")
+        self.tabs.addTab(self.history_tab, "History")
 
         self.setCentralWidget(self.tabs)
         self._apply_style()
@@ -129,22 +132,27 @@ class URLiftWindow(QMainWindow):
         form_layout = QFormLayout(form_frame)
         form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
         form_layout.setLabelAlignment(Qt.AlignRight)
+        form_layout.setRowWrapPolicy(QFormLayout.WrapLongRows)
         form_layout.setHorizontalSpacing(20)
-        form_layout.setVerticalSpacing(16)
+        form_layout.setVerticalSpacing(14)
 
         self.platform_combo = QComboBox()
         self.platform_combo.addItems(PLATFORMS)
-        self.platform_combo.setMinimumWidth(420)
+        self.platform_combo.setMinimumWidth(260)
+        self._set_field_height(self.platform_combo)
         self.platform_help_label = QLabel(platform_help(self.platform_combo.currentText()))
         self.platform_help_label.setObjectName("MutedLabel")
         self.platform_help_label.setWordWrap(True)
 
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("Paste a media URL")
-        self.url_input.setMinimumWidth(420)
+        self.url_input.setMinimumWidth(260)
+        self._set_field_height(self.url_input)
         self.paste_button = QPushButton("Paste")
+        self._set_button_height(self.paste_button)
         self.paste_button.clicked.connect(self.paste_url)
         self.preview_button = QPushButton("Preview")
+        self._set_button_height(self.preview_button)
         self.preview_button.clicked.connect(self.preview_url)
         url_layout = QHBoxLayout()
         url_layout.addWidget(self.url_input, 1)
@@ -153,17 +161,27 @@ class URLiftWindow(QMainWindow):
 
         self.preview_frame = QFrame()
         self.preview_frame.setObjectName("PreviewFrame")
-        preview_layout = QVBoxLayout(self.preview_frame)
+        self.preview_frame.setMinimumHeight(92)
+        preview_layout = QHBoxLayout(self.preview_frame)
         preview_layout.setContentsMargins(12, 10, 12, 10)
-        preview_layout.setSpacing(4)
+        preview_layout.setSpacing(12)
+        self.preview_thumbnail_label = QLabel()
+        self.preview_thumbnail_label.setObjectName("PreviewThumbnail")
+        self.preview_thumbnail_label.setFixedSize(128, 72)
+        self.preview_thumbnail_label.setAlignment(Qt.AlignCenter)
         self.preview_title_label = QLabel("No preview loaded")
         self.preview_title_label.setObjectName("PreviewTitle")
         self.preview_title_label.setWordWrap(True)
         self.preview_detail_label = QLabel("Paste a URL and click Preview.")
         self.preview_detail_label.setObjectName("MutedLabel")
         self.preview_detail_label.setWordWrap(True)
-        preview_layout.addWidget(self.preview_title_label)
-        preview_layout.addWidget(self.preview_detail_label)
+        preview_text_layout = QVBoxLayout()
+        preview_text_layout.setSpacing(4)
+        preview_text_layout.addWidget(self.preview_title_label)
+        preview_text_layout.addWidget(self.preview_detail_label)
+        preview_text_layout.addStretch(1)
+        preview_layout.addWidget(self.preview_thumbnail_label)
+        preview_layout.addLayout(preview_text_layout, 1)
 
         self.video_radio = QRadioButton("Video")
         self.audio_radio = QRadioButton("Audio only")
@@ -175,13 +193,16 @@ class URLiftWindow(QMainWindow):
         self.video_radio.toggled.connect(lambda _checked: self._set_quality_options())
 
         self.quality_combo = QComboBox()
-        self.quality_combo.setMinimumWidth(420)
+        self.quality_combo.setMinimumWidth(260)
+        self._set_field_height(self.quality_combo)
 
         download_dir = Path(self.settings.default_output_folder or str(default_download_dir()))
         download_dir.mkdir(parents=True, exist_ok=True)
         self.output_folder_input = QLineEdit(str(download_dir))
         self.output_folder_input.setPlaceholderText("Choose an output folder")
+        self._set_field_height(self.output_folder_input)
         self.browse_button = QPushButton("Browse")
+        self._set_button_height(self.browse_button)
         self.browse_button.clicked.connect(self.browse_output_folder)
         output_folder_layout = QHBoxLayout()
         output_folder_layout.addWidget(self.output_folder_input, 1)
@@ -190,16 +211,20 @@ class URLiftWindow(QMainWindow):
         self.download_button = QPushButton("Download")
         self.download_button.setObjectName("PrimaryButton")
         self.download_button.setMinimumWidth(160)
+        self._set_button_height(self.download_button)
         self.download_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.download_button.clicked.connect(self.start_download)
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setObjectName("DangerButton")
         self.cancel_button.setMinimumWidth(120)
+        self._set_button_height(self.cancel_button)
         self.cancel_button.setVisible(False)
         self.cancel_button.clicked.connect(self.cancel_download)
         self.add_queue_button = QPushButton("Add to queue")
+        self._set_button_height(self.add_queue_button)
         self.add_queue_button.clicked.connect(self.add_current_to_queue)
         self.start_queue_button = QPushButton("Start queue")
+        self._set_button_height(self.start_queue_button)
         self.start_queue_button.clicked.connect(self.start_queue)
         action_layout = QHBoxLayout()
         action_layout.addWidget(self.download_button)
@@ -212,6 +237,7 @@ class URLiftWindow(QMainWindow):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
+        self.progress_bar.setMinimumHeight(20)
 
         self.open_file_check = QCheckBox("Open file when complete")
         self.open_folder_check = QCheckBox("Open folder when complete")
@@ -225,6 +251,8 @@ class URLiftWindow(QMainWindow):
         self.engine_status_label.setWordWrap(True)
         self.check_updates_button = QPushButton("Check updates")
         self.update_ytdlp_button = QPushButton("Update yt-dlp")
+        self._set_button_height(self.check_updates_button)
+        self._set_button_height(self.update_ytdlp_button)
         self.update_ytdlp_button.setEnabled(False)
         self.check_updates_button.clicked.connect(self.check_ytdlp_updates)
         self.update_ytdlp_button.clicked.connect(self.update_ytdlp_engine)
@@ -237,6 +265,7 @@ class URLiftWindow(QMainWindow):
         self.status_label.setObjectName("StatusLabel")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setMinimumWidth(130)
+        self.status_label.setMinimumHeight(28)
 
         form_layout.addRow("Platform", self.platform_combo)
         form_layout.addRow("", self.platform_help_label)
@@ -251,14 +280,14 @@ class URLiftWindow(QMainWindow):
         form_layout.addRow("Progress", self.progress_bar)
         form_layout.addRow("Status", self.status_label)
 
-        form_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        form_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         queue_frame = self._build_queue_frame()
         layout.addLayout(header_layout)
         layout.addWidget(note)
         layout.addWidget(form_frame)
         layout.addWidget(queue_frame)
         layout.addStretch(1)
-        return tab
+        return self._wrap_scrollable(tab, Qt.ScrollBarAsNeeded)
 
     def _build_queue_frame(self) -> QFrame:
         frame = QFrame()
@@ -285,6 +314,8 @@ class URLiftWindow(QMainWindow):
         self.clear_queue_button = QPushButton("Clear queue")
         self.remove_queue_button.setObjectName("DangerButton")
         self.clear_queue_button.setObjectName("DangerButton")
+        self._set_button_height(self.remove_queue_button)
+        self._set_button_height(self.clear_queue_button)
         self.remove_queue_button.clicked.connect(self.remove_selected_queue_item)
         self.clear_queue_button.clicked.connect(self.clear_queue)
 
@@ -301,6 +332,25 @@ class URLiftWindow(QMainWindow):
         layout.addLayout(actions)
         self._refresh_queue()
         return frame
+
+    @staticmethod
+    def _set_field_height(widget: QWidget) -> None:
+        widget.setMinimumHeight(40)
+        widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    @staticmethod
+    def _set_button_height(widget: QWidget) -> None:
+        widget.setMinimumHeight(40)
+        widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+    @staticmethod
+    def _wrap_scrollable(widget: QWidget, horizontal_policy: Qt.ScrollBarPolicy) -> QScrollArea:
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(horizontal_policy)
+        scroll_area.setWidget(widget)
+        return scroll_area
 
     def _set_quality_options(self) -> None:
         current = self.quality_combo.currentText() if hasattr(self, "quality_combo") else ""
@@ -332,11 +382,11 @@ class URLiftWindow(QMainWindow):
         if self.preview_worker is not None:
             return
 
-        platform = self.platform_combo.currentText()
         url = self.url_input.text().strip()
+        platform = self._platform_for_url(url)
         url_valid, url_error = validate_url(url, platform)
         if not url_valid:
-            self._set_preview("Preview unavailable", url_error)
+            self._set_preview("Preview unavailable", url_error, b"")
             self._set_status(url_error)
             return
 
@@ -345,7 +395,7 @@ class URLiftWindow(QMainWindow):
         self.preview_worker.failed.connect(self._on_preview_failed)
         self.preview_worker.finished.connect(self._on_preview_finished)
         self.preview_button.setEnabled(False)
-        self._set_preview("Checking URL", "Loading media details...")
+        self._set_preview("Checking URL", "Loading media details...", b"")
         self._set_status("Checking URL")
         self.preview_worker.start()
 
@@ -441,8 +491,8 @@ class URLiftWindow(QMainWindow):
         self._start_worker(request)
 
     def _current_request(self, record_errors: bool) -> DownloadRequest | None:
-        platform = self.platform_combo.currentText()
         url = self.url_input.text().strip()
+        platform = self._platform_for_url(url)
         output_type = self._selected_output_type()
         quality = self.quality_combo.currentText()
         output_dir = self.output_folder_input.text().strip()
@@ -505,12 +555,16 @@ class URLiftWindow(QMainWindow):
             )
             if part
         )
-        self._set_preview(payload.get("title") or "(unknown title)", detail or "Preview loaded")
+        self._set_preview(
+            payload.get("title") or "(unknown title)",
+            detail or "Preview loaded",
+            payload.get("thumbnail_data") or b"",
+        )
         if self.worker is None:
             self._set_status("Ready")
 
     def _on_preview_failed(self, error: str) -> None:
-        self._set_preview("Preview unavailable", error or "Failed")
+        self._set_preview("Preview unavailable", error or "Failed", b"")
         self._set_status("Unsupported URL" if "unsupported" in error.lower() else "Failed")
 
     def _on_preview_finished(self) -> None:
@@ -738,9 +792,34 @@ class URLiftWindow(QMainWindow):
         if self.open_folder_check.isChecked() and file_path.parent.exists():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path.parent)))
 
-    def _set_preview(self, title: str, detail: str) -> None:
+    def _platform_for_url(self, url: str) -> str:
+        detected = platform_from_url(url)
+        if detected and self.platform_combo.currentText() != detected:
+            self.platform_combo.setCurrentText(detected)
+            return detected
+        return self.platform_combo.currentText()
+
+    def _set_preview(self, title: str, detail: str, thumbnail_data: bytes | None = None) -> None:
         self.preview_title_label.setText(title)
         self.preview_detail_label.setText(detail)
+        if thumbnail_data is not None:
+            self._set_preview_thumbnail(thumbnail_data)
+
+    def _set_preview_thumbnail(self, thumbnail_data: bytes) -> None:
+        self.preview_thumbnail_label.clear()
+        if not thumbnail_data:
+            return
+
+        pixmap = QPixmap()
+        if not pixmap.loadFromData(thumbnail_data):
+            return
+        self.preview_thumbnail_label.setPixmap(
+            pixmap.scaled(
+                self.preview_thumbnail_label.size(),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation,
+            )
+        )
 
     def _format_duration(self, seconds: int | None) -> str:
         if seconds is None:

@@ -35,6 +35,15 @@ def platform_help(platform: str) -> str:
     return PLATFORM_HELP.get(platform, PLATFORM_HELP["Other / Auto-detect"])
 
 
+def platform_from_url(url: str) -> str | None:
+    """Return a known platform name from a URL host, if one can be inferred."""
+    host = urlparse(url.strip()).netloc.lower()
+    for platform, domains in PLATFORM_DOMAINS.items():
+        if any(host == domain or host.endswith(f".{domain}") for domain in domains):
+            return platform
+    return None
+
+
 def validate_url(url: str, platform: str) -> tuple[bool, str]:
     """Validate basic URL shape and platform-domain hints."""
     parsed = urlparse(url.strip())
@@ -47,7 +56,7 @@ def validate_url(url: str, platform: str) -> tuple[bool, str]:
     host = parsed.netloc.lower()
     domains = PLATFORM_DOMAINS.get(platform, ())
     if domains and not any(host == domain or host.endswith(f".{domain}") for domain in domains):
-        return False, "Unsupported URL"
+        return False, "URL does not match selected platform"
 
     return True, ""
 

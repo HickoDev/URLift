@@ -47,6 +47,7 @@ class MediaInfo:
     duration: int | None
     extractor: str
     webpage_url: str
+    thumbnail_url: str
 
 
 def fetch_metadata(url: str) -> MediaInfo:
@@ -75,6 +76,7 @@ def fetch_metadata(url: str) -> MediaInfo:
         duration=_duration_from_info(info),
         extractor=str(info.get("extractor_key") or info.get("extractor") or "Unknown"),
         webpage_url=str(info.get("webpage_url") or url),
+        thumbnail_url=_thumbnail_from_info(info),
     )
 
 
@@ -280,6 +282,19 @@ def _duration_from_info(info: dict) -> int | None:
         return int(duration)
     except (TypeError, ValueError):
         return None
+
+
+def _thumbnail_from_info(info: dict) -> str:
+    thumbnail = info.get("thumbnail")
+    if thumbnail:
+        return str(thumbnail)
+
+    thumbnails = info.get("thumbnails") or []
+    for item in reversed(thumbnails):
+        url = item.get("url")
+        if url:
+            return str(url)
+    return ""
 
 
 def _resolve_file_path(
