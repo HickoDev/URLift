@@ -11,7 +11,7 @@ from urllib.request import urlopen
 from yt_dlp.version import __version__ as YTDLP_VERSION
 
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 PYPI_YTDLP_URL = "https://pypi.org/pypi/yt-dlp/json"
 
 
