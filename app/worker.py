@@ -65,8 +65,7 @@ class DownloadWorker(QThread):
         except FFmpegMissingError as exc:
             self.failed.emit(self._failure_payload("FFmpeg missing", str(exc)))
         except URLiftDownloadError as exc:
-            status = "Unsupported URL" if "unsupported" in str(exc).lower() else "Failed"
-            self.failed.emit(self._failure_payload(status, str(exc)))
+            self.failed.emit(self._failure_payload(_status_from_error(str(exc)), str(exc)))
         except Exception as exc:
             self.failed.emit(self._failure_payload("Failed", str(exc) or "Failed"))
 
@@ -182,3 +181,12 @@ def _download_thumbnail(url: str) -> bytes:
             return response.read(2_000_000)
     except (OSError, URLError, ValueError):
         return b""
+
+
+def _status_from_error(error: str) -> str:
+    lower = error.lower()
+    if "unsupported" in lower:
+        return "Unsupported URL"
+    if "verification" in lower or "captcha" in lower:
+        return "Verification required"
+    return "Failed"
