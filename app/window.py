@@ -147,7 +147,7 @@ class URLiftWindow(QMainWindow):
         self.paste_button = QPushButton("Paste")
         self._set_button_height(self.paste_button)
         self.paste_button.clicked.connect(self.paste_url)
-        self.preview_button = QPushButton("Preview")
+        self.preview_button = QPushButton("Preview info")
         self._set_button_height(self.preview_button)
         self.preview_button.clicked.connect(self.preview_url)
         url_layout = QHBoxLayout()
@@ -168,7 +168,7 @@ class URLiftWindow(QMainWindow):
         self.preview_title_label = QLabel("No preview loaded")
         self.preview_title_label.setObjectName("PreviewTitle")
         self.preview_title_label.setWordWrap(True)
-        self.preview_detail_label = QLabel("Paste a URL and click Preview.")
+        self.preview_detail_label = QLabel("Preview is optional. Paste a URL, or download directly.")
         self.preview_detail_label.setObjectName("MutedLabel")
         self.preview_detail_label.setWordWrap(True)
         preview_text_layout = QVBoxLayout()
@@ -571,8 +571,12 @@ class URLiftWindow(QMainWindow):
             self._set_status("Ready")
 
     def _on_preview_failed(self, error: str) -> None:
-        self._set_preview("Preview unavailable", error or "Failed", b"")
-        self._set_status("Unsupported URL" if "unsupported" in error.lower() else "Failed")
+        message = error or "Preview unavailable"
+        if "verification" in message.lower() or "captcha" in message.lower():
+            message = f"{message} Preview is optional; download can continue only if the public URL is accessible."
+        self._set_preview("Preview unavailable", message, b"")
+        if self.worker is None:
+            self._set_status("Ready")
 
     def _on_preview_finished(self) -> None:
         worker = self.preview_worker
