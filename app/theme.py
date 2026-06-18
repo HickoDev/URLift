@@ -85,7 +85,13 @@ QFrame#FormFrame {
     background: #2b2d31;
     border: 1px solid #1e1f22;
     border-radius: 8px;
-    padding: 18px;
+}
+
+QLabel#FieldLabel {
+    color: #b5bac1;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
 }
 
 QFrame#PreviewFrame {
@@ -119,6 +125,28 @@ QFrame#QueueFrame {
     background: #2b2d31;
     border: 1px solid #1e1f22;
     border-radius: 8px;
+}
+
+QScrollArea {
+    background: #313338;
+    border: 0;
+}
+
+QScrollBar:vertical {
+    background: #2b2d31;
+    width: 12px;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical {
+    background: #4e5058;
+    border-radius: 6px;
+    min-height: 28px;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
 }
 
 QLineEdit,

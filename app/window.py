@@ -10,12 +10,10 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
-    QHeaderView,
-    QSizePolicy,
     QFileDialog,
     QComboBox,
-    QFormLayout,
     QFrame,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -25,6 +23,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QRadioButton,
     QScrollArea,
+    QSizePolicy,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -69,7 +68,7 @@ class URLiftWindow(QMainWindow):
         self.queue_active = False
 
         self.setWindowTitle("URLift")
-        self.setMinimumSize(720, 560)
+        self.setMinimumSize(900, 620)
         self.resize(1120, 760)
 
         self.tabs = QTabWidget()
@@ -129,12 +128,9 @@ class URLiftWindow(QMainWindow):
 
         form_frame = QFrame()
         form_frame.setObjectName("FormFrame")
-        form_layout = QFormLayout(form_frame)
-        form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
-        form_layout.setLabelAlignment(Qt.AlignRight)
-        form_layout.setRowWrapPolicy(QFormLayout.WrapLongRows)
-        form_layout.setHorizontalSpacing(20)
-        form_layout.setVerticalSpacing(14)
+        form_layout = QVBoxLayout(form_frame)
+        form_layout.setContentsMargins(18, 18, 18, 18)
+        form_layout.setSpacing(14)
 
         self.platform_combo = QComboBox()
         self.platform_combo.addItems(PLATFORMS)
@@ -227,6 +223,7 @@ class URLiftWindow(QMainWindow):
         self._set_button_height(self.start_queue_button)
         self.start_queue_button.clicked.connect(self.start_queue)
         action_layout = QHBoxLayout()
+        action_layout.setSpacing(8)
         action_layout.addWidget(self.download_button)
         action_layout.addWidget(self.add_queue_button)
         action_layout.addWidget(self.start_queue_button)
@@ -267,18 +264,18 @@ class URLiftWindow(QMainWindow):
         self.status_label.setMinimumWidth(130)
         self.status_label.setMinimumHeight(28)
 
-        form_layout.addRow("Platform", self.platform_combo)
-        form_layout.addRow("", self.platform_help_label)
-        form_layout.addRow("URL", url_layout)
-        form_layout.addRow("Preview", self.preview_frame)
-        form_layout.addRow("Output type", output_type_layout)
-        form_layout.addRow("Quality / format", self.quality_combo)
-        form_layout.addRow("Output folder", output_folder_layout)
-        form_layout.addRow("After download", after_download_layout)
-        form_layout.addRow("Engine", engine_layout)
-        form_layout.addRow("", action_layout)
-        form_layout.addRow("Progress", self.progress_bar)
-        form_layout.addRow("Status", self.status_label)
+        self._add_field(form_layout, "Platform", self.platform_combo)
+        form_layout.addWidget(self.platform_help_label)
+        self._add_field(form_layout, "URL", url_layout)
+        self._add_field(form_layout, "Preview", self.preview_frame)
+        self._add_field(form_layout, "Output type", output_type_layout)
+        self._add_field(form_layout, "Quality / format", self.quality_combo)
+        self._add_field(form_layout, "Output folder", output_folder_layout)
+        self._add_field(form_layout, "After download", after_download_layout)
+        self._add_field(form_layout, "Engine", engine_layout)
+        form_layout.addLayout(action_layout)
+        self._add_field(form_layout, "Progress", self.progress_bar)
+        self._add_field(form_layout, "Status", self.status_label)
 
         form_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         queue_frame = self._build_queue_frame()
@@ -287,7 +284,7 @@ class URLiftWindow(QMainWindow):
         layout.addWidget(form_frame)
         layout.addWidget(queue_frame)
         layout.addStretch(1)
-        return self._wrap_scrollable(tab, Qt.ScrollBarAsNeeded)
+        return self._wrap_scrollable(tab, Qt.ScrollBarAlwaysOff)
 
     def _build_queue_frame(self) -> QFrame:
         frame = QFrame()
@@ -342,6 +339,16 @@ class URLiftWindow(QMainWindow):
     def _set_button_height(widget: QWidget) -> None:
         widget.setMinimumHeight(40)
         widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+    @staticmethod
+    def _add_field(parent_layout: QVBoxLayout, label: str, field: QWidget | QHBoxLayout) -> None:
+        label_widget = QLabel(label)
+        label_widget.setObjectName("FieldLabel")
+        parent_layout.addWidget(label_widget)
+        if isinstance(field, QHBoxLayout):
+            parent_layout.addLayout(field)
+        else:
+            parent_layout.addWidget(field)
 
     @staticmethod
     def _wrap_scrollable(widget: QWidget, horizontal_policy: Qt.ScrollBarPolicy) -> QScrollArea:
