@@ -402,7 +402,9 @@ def _clean_error(message: str) -> str:
     lower = cleaned.lower()
     if "drm" in lower:
         return "DRM-protected media is not supported."
-    if any(token in lower for token in ("login", "private", "premium", "paid", "subscription")):
+    if any(token in lower for token in ("verification", "verify", "not a bot", "captcha")):
+        return "Platform verification required. URLift cannot bypass verification or access restrictions."
+    if any(token in lower for token in ("login", "sign in", "private", "premium", "paid", "subscription")):
         return "This media requires login, payment, or private access and cannot be downloaded by URLift."
     if "unsupported url" in lower or "no suitable extractor" in lower:
         return "Unsupported URL"
